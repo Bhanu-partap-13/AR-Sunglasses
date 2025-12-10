@@ -133,6 +133,38 @@ const ARTryOnPage = () => {
         return
       }
 
+      // Wait for MindAR to be loaded from CDN
+      const waitForMindAR = () => {
+        return new Promise<void>((resolve, reject) => {
+          if ((window as any).MINDAR?.FACE?.MindARThree) {
+            resolve()
+            return
+          }
+          
+          let attempts = 0
+          const maxAttempts = 50
+          const checkInterval = setInterval(() => {
+            attempts++
+            if ((window as any).MINDAR?.FACE?.MindARThree) {
+              clearInterval(checkInterval)
+              resolve()
+            } else if (attempts >= maxAttempts) {
+              clearInterval(checkInterval)
+              reject(new Error('MindAR failed to load from CDN'))
+            }
+          }, 100)
+        })
+      }
+
+      try {
+        await waitForMindAR()
+      } catch (error) {
+        console.error('MindAR loading error:', error)
+        setErrorMessage('Failed to load AR library. Please refresh the page.')
+        setLoading(false)
+        return
+      }
+
       // Use global MindARThree from CDN
       const MindARThree = (window as any).MINDAR.FACE.MindARThree
       const THREE = await import('three')
@@ -316,10 +348,12 @@ const ARTryOnPage = () => {
           cancelAnimationFrame(animationFrameRef.current)
           animationFrameRef.current = null
         }
+        setErrorMessage('Graphics context lost. Please refresh the page to continue.')
       })
 
       renderer.domElement.addEventListener('webglcontextrestored', () => {
         console.log('WebGL context restored, resuming render')
+        setErrorMessage('')
         if (mindarRef.current && !animationFrameRef.current) {
           animationFrameRef.current = requestAnimationFrame(render)
         }
