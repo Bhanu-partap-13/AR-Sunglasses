@@ -1,0 +1,144 @@
+// ============================================
+// SCROLL SHOWCASE SECTION STYLES
+// ============================================
+
+// Canvas 3D Loader
+.canvas-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-gold);
+  font-size: 0.875rem;
+  font-weight: 500;
+  
+  .loader-ring {
+    width: 40px;
+    height: 40px;
+    border: 2px solid rgba(212, 175, 55, 0.2);
+    border-top-color: var(--color-gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.scroll-showcase-section {
+  position: relative;
+  min-height: 200vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.showcase-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+
+  .gradient-layer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+      circle at 50% 50%,
+      rgba(212, 175, 55, 0.05) 0%,
+      var(--color-bg-primary) 70%
+    );
+  }
+}
+
+.showcase-content {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.content-overlay {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  text-align: center;
+  max-width: 800px;
+  padding: 0 2rem;
+
+  .text-content {
+    .section-label {
+      display: inline-block;
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-bottom: 1rem;
+      opacity: 0.9;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 600;
+      line-height: 1.2;
+      color: var(--color-text-primary);
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+
+      .accent {
+        color: var(--color-gold);
+        font-style: italic;
+      }
+    }
+
+    .section-description {
+      font-family: var(--font-body);
+      font-size: 1.125rem;
+      line-height: 1.8;
+      color: var(--color-text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+      opacity: 0.85;
+    }
+  }
+}
+
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  
+  canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .scroll-showcase-section {
+    min-height: 150vh;
+  }
+
+  .content-overlay {
+    top: 5%;
+    padding: 0 1.5rem;
+
+    .text-content {
+      .section-description {
+        font-size: 1rem;
+      }
+    }
+  }
+}

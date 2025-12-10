@@ -1,0 +1,96 @@
+.app {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  overflow-x: hidden;
+}
+
+// App content visibility control during loading
+.app-content {
+  &.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  
+  &.visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.main-content {
+  position: relative;
+  z-index: 1;
+
+  &.page-content {
+    padding-top: 100px; // Account for fixed navbar on separate pages
+    min-height: 100vh;
+  }
+
+  &.product-page {
+    padding-top: 100px;
+    min-height: 100vh;
+  }
+
+  &.customize-page {
+    padding-top: 80px; // Less padding for customizer to maximize space
+    min-height: 100vh;
+  }
+}
+
+// Section loading placeholder
+.section-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 1rem;
+  background: var(--color-bg-primary);
+
+  .loader-spinner {
+    width: 40px;
+    height: 40px;
+    border: 2px solid rgba(212, 175, 55, 0.2);
+    border-top-color: var(--color-gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  span {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Lenis smooth scroll styles
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}

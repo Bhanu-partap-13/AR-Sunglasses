@@ -1,0 +1,5 @@
+export { default as HomePage } from './HomePage'
+export { default as CollectionPage } from './CollectionPage'
+export { default as DashboardPage } from './DashboardPage'
+export { default as ProductPage } from './ProductPage'
+export { default as CustomizePage } from './CustomizePage'

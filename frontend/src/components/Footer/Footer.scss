@@ -1,0 +1,210 @@
+// ============================================
+// FOOTER STYLES - Lenskart Style
+// ============================================
+
+.main-footer {
+  background: #0A0A0A;
+  color: #FFFFFF;
+  margin-top: 0;
+}
+
+// Top Section
+.footer-top {
+  padding: 60px 0 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px;
+
+  @media (max-width: 768px) {
+    padding: 0 20px;
+  }
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 60px;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+}
+
+.footer-heading {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 20px;
+}
+
+// About Section
+.footer-about {
+  .footer-text {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 20px;
+    max-width: 300px;
+  }
+
+  .footer-email {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    margin-bottom: 20px;
+    transition: color var(--transition-base);
+
+    &:hover {
+      color: #FFFFFF;
+    }
+  }
+
+  .footer-social-links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    a {
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      color: rgba(255, 255, 255, 0.7);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color var(--transition-base);
+
+      &:hover {
+        color: #FFFFFF;
+      }
+    }
+  }
+}
+
+// Footer Column
+.footer-column {
+  .footer-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    li a {
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      color: rgba(255, 255, 255, 0.7);
+      transition: color var(--transition-base);
+
+      &:hover {
+        color: #FFFFFF;
+      }
+    }
+  }
+
+  .footer-address {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+// Bottom Section - Large Brand
+.footer-bottom {
+  position: relative;
+  height: 250px;
+  background: #8B8B8B;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  @media (max-width: 768px) {
+    height: 180px;
+  }
+}
+
+.footer-brand-large {
+  position: relative;
+  z-index: 1;
+
+  .brand-text {
+    font-family: var(--font-display);
+    font-size: clamp(8rem, 25vw, 20rem);
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    color: #0A0A0A;
+    line-height: 0.85;
+    text-transform: uppercase;
+    // Stylized vertical split effect
+    background: linear-gradient(
+      90deg,
+      #0A0A0A 0%,
+      #0A0A0A 15%,
+      transparent 15%,
+      transparent 17%,
+      #0A0A0A 17%,
+      #0A0A0A 32%,
+      transparent 32%,
+      transparent 34%,
+      #0A0A0A 34%,
+      #0A0A0A 49%,
+      transparent 49%,
+      transparent 51%,
+      #0A0A0A 51%,
+      #0A0A0A 66%,
+      transparent 66%,
+      transparent 68%,
+      #0A0A0A 68%,
+      #0A0A0A 83%,
+      transparent 83%,
+      transparent 85%,
+      #0A0A0A 85%,
+      #0A0A0A 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @media (max-width: 768px) {
+    .brand-text {
+      font-size: 6rem;
+    }
+  }
+}
+
+// Running Man Illustration
+.footer-illustration {
+  position: absolute;
+  right: 60px;
+  bottom: 20px;
+  width: 100px;
+  height: 120px;
+  z-index: 2;
+
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (max-width: 768px) {
+    right: 20px;
+    width: 60px;
+    height: 80px;
+  }
+}

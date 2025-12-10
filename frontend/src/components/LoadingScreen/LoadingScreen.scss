@@ -1,0 +1,195 @@
+.loading-curtain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(180deg, #0A0A0A 0%, #1a1a1a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-loading, 1000);
+  will-change: clip-path;
+  clip-path: inset(0 0 0 0);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(212, 175, 55, 0.08) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  z-index: 2;
+}
+
+// Logo Section
+.loading-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  .logo-icon {
+    width: 100px;
+    height: 100px;
+    
+    @media (max-width: 768px) {
+      width: 80px;
+      height: 80px;
+    }
+  }
+  
+  .logo-glow {
+    position: absolute;
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(
+      circle,
+      rgba(212, 175, 55, 0.3) 0%,
+      rgba(212, 175, 55, 0) 70%
+    );
+    border-radius: 50%;
+    animation: pulseGlow 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+// Brand Name
+.loading-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: 1.5rem;
+  letter-spacing: 0.2em;
+  
+  @media (max-width: 768px) {
+    font-size: 1.25rem;
+  }
+  
+  .brand-text {
+    color: #FFFFFF;
+    font-weight: 400;
+  }
+  
+  .brand-accent {
+    color: #D4AF37;
+    font-weight: 500;
+  }
+}
+
+// Progress Section
+.loading-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 280px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+  overflow: hidden;
+  
+  .progress-fill {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #D4AF37 0%, #E9CD74 100%);
+    transform-origin: left;
+    border-radius: 1px;
+  }
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-body, 'Montserrat', sans-serif);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  
+  .progress-label {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  
+  .progress-number {
+    color: #D4AF37;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Decorative Elements
+.loading-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  
+  .deco-line {
+    position: absolute;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(212, 175, 55, 0.1) 50%,
+      transparent 100%
+    );
+    height: 1px;
+    width: 100%;
+    
+    &.deco-line-1 {
+      top: 20%;
+      animation: slideRight 8s linear infinite;
+    }
+    
+    &.deco-line-2 {
+      bottom: 25%;
+      animation: slideLeft 10s linear infinite;
+    }
+  }
+}
+
+@keyframes slideRight {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slideLeft {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}

@@ -1,0 +1,38 @@
+// Blend mode cursor with trailing
+.custom-cursor-blend {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 40px;
+  background: rgba(197, 155, 42, 0.8);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: difference;
+  will-change: transform;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.simple-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--color-gold);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: difference;
+  will-change: transform;
+  margin-left: -6px;
+  margin-top: -6px;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
