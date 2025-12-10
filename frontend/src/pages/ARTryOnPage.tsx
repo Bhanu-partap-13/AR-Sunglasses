@@ -133,8 +133,8 @@ const ARTryOnPage = () => {
         return
       }
 
-      // Dynamically import MindAR to avoid SSR issues
-      const { MindARThree } = await import('mind-ar/dist/mindar-face-three.prod.js')
+      // Use global MindARThree from CDN
+      const MindARThree = (window as any).MINDAR.FACE.MindARThree
       const THREE = await import('three')
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
 
@@ -309,7 +309,7 @@ const ARTryOnPage = () => {
       }
       
       // Handle WebGL context loss
-      renderer.domElement.addEventListener('webglcontextlost', (event) => {
+      renderer.domElement.addEventListener('webglcontextlost', (event: Event) => {
         event.preventDefault()
         console.warn('WebGL context lost, stopping render loop')
         if (animationFrameRef.current) {

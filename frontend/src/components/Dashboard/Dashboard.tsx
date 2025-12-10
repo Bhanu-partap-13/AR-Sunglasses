@@ -1,140 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  BarElement,
-  ArcElement,
-  Title, 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
   Tooltip, 
-  Legend,
-  Filler
-} from 'chart.js'
-import { Line, Bar, Doughnut } from 'react-chartjs-2'
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts'
 import './Dashboard.scss'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-)
-
-// Chart options with luxury styling
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      labels: {
-        color: '#F5F5F0',
-        font: {
-          family: 'Montserrat, sans-serif',
-          size: 11
-        }
-      }
-    },
-    tooltip: {
-      backgroundColor: 'rgba(26, 26, 26, 0.95)',
-      titleColor: '#D4AF37',
-      bodyColor: '#F5F5F0',
-      borderColor: '#D4AF37',
-      borderWidth: 1,
-      padding: 12,
-      cornerRadius: 8,
-    }
-  },
-  scales: {
-    x: {
-      grid: {
-        color: 'rgba(255, 255, 255, 0.05)',
-        drawBorder: false,
-      },
-      ticks: {
-        color: '#888888',
-        font: {
-          family: 'Montserrat, sans-serif',
-          size: 10
-        }
-      }
-    },
-    y: {
-      grid: {
-        color: 'rgba(255, 255, 255, 0.05)',
-        drawBorder: false,
-      },
-      ticks: {
-        color: '#888888',
-        font: {
-          family: 'Montserrat, sans-serif',
-          size: 10
-        }
-      }
-    }
-  }
-}
-
 // Mock data for analytics
-const customizationData = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  datasets: [
-    {
-      label: 'Customizations',
-      data: [450, 620, 580, 790, 950, 1240],
-      borderColor: '#D4AF37',
-      backgroundColor: 'rgba(212, 175, 55, 0.1)',
-      fill: true,
-      tension: 0.4,
-    }
-  ]
-}
+const customizationData = [
+  { month: 'Jan', customizations: 450 },
+  { month: 'Feb', customizations: 620 },
+  { month: 'Mar', customizations: 580 },
+  { month: 'Apr', customizations: 790 },
+  { month: 'May', customizations: 950 },
+  { month: 'Jun', customizations: 1240 }
+]
 
-const frameColorData = {
-  labels: ['Matte Black', 'Polished Gold', 'Rose Gold', 'Silver', 'Tortoiseshell', 'Champagne'],
-  datasets: [
-    {
-      label: 'Popularity',
-      data: [320, 280, 190, 250, 150, 210],
-      backgroundColor: [
-        'rgba(26, 26, 26, 0.8)',
-        'rgba(212, 175, 55, 0.8)',
-        'rgba(183, 110, 121, 0.8)',
-        'rgba(192, 192, 192, 0.8)',
-        'rgba(139, 69, 19, 0.8)',
-        'rgba(244, 207, 103, 0.8)',
-      ],
-      borderColor: '#D4AF37',
-      borderWidth: 1,
-    }
-  ]
-}
+const frameColorData = [
+  { name: 'Matte Black', value: 320, color: 'rgba(26, 26, 26, 0.8)' },
+  { name: 'Polished Gold', value: 280, color: 'rgba(212, 175, 55, 0.8)' },
+  { name: 'Rose Gold', value: 190, color: 'rgba(183, 110, 121, 0.8)' },
+  { name: 'Silver', value: 250, color: 'rgba(192, 192, 192, 0.8)' },
+  { name: 'Tortoiseshell', value: 150, color: 'rgba(139, 69, 19, 0.8)' },
+  { name: 'Champagne', value: 210, color: 'rgba(244, 207, 103, 0.8)' }
+]
 
-const lensSelectionData = {
-  labels: ['Gradient Blue', 'Brown', 'Gray', 'Green', 'Mirror Gold', 'Mirror Silver'],
-  datasets: [
-    {
-      data: [28, 18, 22, 12, 10, 10],
-      backgroundColor: [
-        'rgba(30, 58, 138, 0.8)',
-        'rgba(146, 64, 14, 0.8)',
-        'rgba(55, 65, 81, 0.8)',
-        'rgba(6, 95, 70, 0.8)',
-        'rgba(212, 175, 55, 0.8)',
-        'rgba(192, 192, 192, 0.8)',
-      ],
-      borderColor: '#D4AF37',
-      borderWidth: 2,
-    }
-  ]
-}
+const lensSelectionData = [
+  { name: 'Gradient Blue', value: 28, color: 'rgba(30, 58, 138, 0.8)' },
+  { name: 'Brown', value: 18, color: 'rgba(146, 64, 14, 0.8)' },
+  { name: 'Gray', value: 22, color: 'rgba(55, 65, 81, 0.8)' },
+  { name: 'Green', value: 12, color: 'rgba(6, 95, 70, 0.8)' },
+  { name: 'Mirror Gold', value: 10, color: 'rgba(212, 175, 55, 0.8)' },
+  { name: 'Mirror Silver', value: 10, color: 'rgba(192, 192, 192, 0.8)' }
+]
 
 // Recent customizations carousel data
 const recentCustomizations = [
@@ -207,7 +115,45 @@ const Dashboard: React.FC = () => {
               <span className="chart-subtitle">Last 6 months</span>
             </div>
             <div className="chart-body">
-              <Line data={customizationData} options={chartOptions} />
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={customizationData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="#888888"
+                    style={{ fontSize: '10px', fontFamily: 'Montserrat, sans-serif' }}
+                  />
+                  <YAxis 
+                    stroke="#888888"
+                    style={{ fontSize: '10px', fontFamily: 'Montserrat, sans-serif' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(26, 26, 26, 0.95)', 
+                      border: '1px solid #D4AF37',
+                      borderRadius: '8px',
+                      padding: '12px'
+                    }}
+                    labelStyle={{ color: '#D4AF37' }}
+                    itemStyle={{ color: '#F5F5F0' }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ 
+                      color: '#F5F5F0',
+                      fontFamily: 'Montserrat, sans-serif',
+                      fontSize: '11px'
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="customizations" 
+                    stroke="#D4AF37" 
+                    strokeWidth={2}
+                    dot={{ fill: '#D4AF37', r: 4 }}
+                    fill="rgba(212, 175, 55, 0.1)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -218,7 +164,38 @@ const Dashboard: React.FC = () => {
               <span className="chart-subtitle">Current month</span>
             </div>
             <div className="chart-body">
-              <Bar data={frameColorData} options={{...chartOptions, scales: undefined}} />
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={frameColorData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#888888"
+                    style={{ fontSize: '9px', fontFamily: 'Montserrat, sans-serif' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis 
+                    stroke="#888888"
+                    style={{ fontSize: '10px', fontFamily: 'Montserrat, sans-serif' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(26, 26, 26, 0.95)', 
+                      border: '1px solid #D4AF37',
+                      borderRadius: '8px',
+                      padding: '12px'
+                    }}
+                    labelStyle={{ color: '#D4AF37' }}
+                    itemStyle={{ color: '#F5F5F0' }}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {frameColorData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -229,20 +206,32 @@ const Dashboard: React.FC = () => {
               <span className="chart-subtitle">Distribution %</span>
             </div>
             <div className="chart-body">
-              <Doughnut 
-                data={lensSelectionData} 
-                options={{
-                  ...chartOptions,
-                  scales: undefined,
-                  plugins: {
-                    ...chartOptions.plugins,
-                    legend: {
-                      ...chartOptions.plugins.legend,
-                      position: 'right' as const,
-                    }
-                  }
-                }} 
-              />
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={lensSelectionData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${name}: ${value}%`}
+                    outerRadius={80}
+                    dataKey="value"
+                  >
+                    {lensSelectionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(26, 26, 26, 0.95)', 
+                      border: '1px solid #D4AF37',
+                      borderRadius: '8px',
+                      padding: '12px'
+                    }}
+                    itemStyle={{ color: '#F5F5F0' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>

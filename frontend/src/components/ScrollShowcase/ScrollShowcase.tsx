@@ -1,6 +1,6 @@
 import { useRef, useEffect, Suspense } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF, PerspectiveCamera, Environment, Float, Html, useProgress, OrbitControls } from '@react-three/drei'
+import { Canvas } from '@react-three/fiber'
+import { useGLTF, PerspectiveCamera, Environment, Html, useProgress, OrbitControls } from '@react-three/drei'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import * as THREE from 'three'
@@ -61,12 +61,12 @@ const ScrollShowcase: React.FC = () => {
           pin: true,
         }
       })
-      .to(modelRef.current.rotation, {
+      .to(modelRef.current!.rotation, {
         y: Math.PI * 0.5,
         duration: 1,
         ease: 'power2.inOut'
       })
-      .to(modelRef.current.position, {
+      .to(modelRef.current!.position, {
         z: -1,
         duration: 1,
         ease: 'power2.inOut'
@@ -82,13 +82,13 @@ const ScrollShowcase: React.FC = () => {
           pin: true,
         }
       })
-      .to(modelRef.current.rotation, {
+      .to(modelRef.current!.rotation, {
         y: Math.PI,
         x: Math.PI * 0.15,
         duration: 1,
         ease: 'power2.inOut'
       })
-      .to(modelRef.current.scale, {
+      .to(modelRef.current!.scale, {
         x: 3,
         y: 3,
         z: 3,
@@ -106,20 +106,20 @@ const ScrollShowcase: React.FC = () => {
           pin: true,
         }
       })
-      .to(modelRef.current.rotation, {
+      .to(modelRef.current!.rotation, {
         y: Math.PI * 2,
         x: 0,
         duration: 1,
         ease: 'power2.inOut'
       })
-      .to(modelRef.current.scale, {
+      .to(modelRef.current!.scale, {
         x: 2.5,
         y: 2.5,
         z: 2.5,
         duration: 1,
         ease: 'power2.inOut'
       }, '<')
-      .to(modelRef.current.position, {
+      .to(modelRef.current!.position, {
         z: 0,
         duration: 1,
         ease: 'power2.inOut'
