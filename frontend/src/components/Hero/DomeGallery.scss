@@ -41,6 +41,8 @@ main.sphere-main {
   perspective: calc(var(--radius) * 2);
   perspective-origin: 50% 50%;
   contain: layout paint size;
+  padding: 0;
+  margin: 0;
 }
 
 .sphere {
@@ -58,13 +60,15 @@ main.sphere-main {
 }
 
 .overlay {
-  background-image: radial-gradient(rgba(235, 235, 235, 0) 65%, var(--overlay-blur-color, #0a0a0a) 100%);
+  background-image: transparent;
+  display: none;
 }
 
 .overlay--blur {
-  -webkit-mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #0a0a0a) 90%);
-  mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #0a0a0a) 90%);
-  backdrop-filter: blur(3px);
+  -webkit-mask-image: transparent;
+  mask-image: transparent;
+  backdrop-filter: none;
+  display: none;
 }
 
 .item {
@@ -99,6 +103,8 @@ main.sphere-main {
   pointer-events: auto;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
+  border: none;
+  box-shadow: none;
 }
 
 .item__image:focus {
@@ -185,16 +191,19 @@ main.sphere-main {
   height: 120px;
   z-index: 5;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--overlay-blur-color, #0a0a0a));
+  background: transparent;
+  display: none;
 }
 
 .edge-fade--top {
   top: 0;
   transform: rotate(180deg);
+  display: none;
 }
 
 .edge-fade--bottom {
   bottom: 0;
+  display: none;
 }
 
 // Scroll lock style

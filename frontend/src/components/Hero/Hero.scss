@@ -7,6 +7,15 @@
   padding: var(--spacing-2xl) 0;
   overflow: hidden;
   background: var(--gradient-hero);
+
+  @media (max-width: 768px) {
+    min-height: 90vh;
+    padding: var(--spacing-xl) 0;
+  }
+
+  @media (max-width: 480px) {
+    min-height: 85vh;
+  }
 }
 
 .hero-webgl-text {
@@ -27,6 +36,17 @@
   @media (max-width: 992px) {
     top: 5%;
     height: 150px;
+    max-width: 700px;
+  }
+
+  @media (max-width: 768px) {
+    height: 120px;
+    max-width: 500px;
+  }
+
+  @media (max-width: 480px) {
+    height: 100px;
+    max-width: 90%;
   }
 }
 
@@ -34,48 +54,81 @@
   position: absolute;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
+  
+  .hero-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    z-index: 0;
+  }
+  
+  .video-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 10, 15, 0.6);
+    z-index: 1;
+  }
   
   .gradient-overlay {
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse at 30% 30%, rgba(197, 155, 42, 0.12), transparent 55%),
-                radial-gradient(ellipse at 80% 20%, rgba(222, 227, 234, 0.5), transparent 45%);
+    background: radial-gradient(ellipse at 30% 30%, rgba(197, 155, 42, 0.12), transparent 55%);
+    z-index: 2;
   }
 }
 
 .hero-content {
   position: relative;
-  z-index: 1;
-  max-width: 1400px;
+  z-index: 2;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 var(--spacing-lg);
   width: 100%;
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: var(--spacing-2xl);
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
   
   @media (max-width: 992px) {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-2xl);
-    text-align: center;
+    padding: 0 var(--spacing-md);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0 var(--spacing-sm);
   }
 }
 
 .hero-text {
+  padding-top: var(--spacing-3xl);
+  
+  @media (max-width: 768px) {
+    padding-top: var(--spacing-2xl);
+  }
+
+  @media (max-width: 480px) {
+    padding-top: var(--spacing-xl);
+  }
+  
   .hero-tagline {
     display: inline-block;
-    font-size: 0.75rem;
+    font-size: clamp(0.625rem, 1.5vw, 0.75rem);
     font-weight: 600;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--color-gold-dark);
+    color: #ffffff;
     margin-bottom: var(--spacing-md);
   }
   
   .hero-title {
     margin-bottom: var(--spacing-lg);
-    color: var(--color-text-secondary);
+    color: #ffffff;
+    font-size: clamp(2rem, 5vw, 3.5rem);
     
     .title-line {
       display: block;
@@ -83,12 +136,14 @@
   }
   
   .hero-description {
-    max-width: 500px;
-    margin-bottom: var(--spacing-xl);
-    color: var(--color-text-muted);
-    
-    @media (max-width: 992px) {
-      max-width: 100%;
+    max-width: 600px;
+    margin: 0 0 var(--spacing-xl) 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: clamp(0.875rem, 2vw, 1.125rem);
+    line-height: 1.6;
+
+    @media (max-width: 768px) {
+      max-width: 500px;
     }
   }
 }
@@ -97,25 +152,40 @@
   display: flex;
   gap: var(--spacing-md);
   align-items: center;
-  
-  @media (max-width: 992px) {
-    justify-content: center;
-  }
+  justify-content: flex-start;
+  margin-bottom: var(--spacing-2xl);
+  flex-wrap: wrap;
   
   @media (max-width: 576px) {
     flex-direction: column;
+    width: 100%;
+    gap: var(--spacing-sm);
+  }
+
+  .btn {
+    @media (max-width: 576px) {
+      width: 100%;
+      max-width: 300px;
+    }
   }
 }
 
-.hero-3d-container {
-  height: 550px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: transparent;
+// Full Width Dome Gallery - No Container Constraints
+.hero-dome-gallery-fullwidth {
+  width: 100vw;
   position: relative;
-
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  height: 600px;
+  
   @media (max-width: 992px) {
-    height: 450px;
+    height: 500px;
+  }
+  
+  @media (max-width: 576px) {
+    height: 400px;
   }
 }// Canvas 3D Loader
 .canvas-loader {

@@ -91,9 +91,18 @@
 
 html {
   font-size: 16px;
+  scroll-behavior: smooth;
+  
+  @media (max-width: 1024px) {
+    font-size: 15px;
+  }
   
   @media (max-width: 768px) {
     font-size: 14px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 13px;
   }
 }
 
@@ -120,9 +129,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   cursor: auto;
+  width: 100%;
+  min-height: 100vh;
   
   @media (max-width: 768px) {
     cursor: auto;
+    overflow-x: hidden;
   }
 }
 
@@ -229,12 +241,18 @@ a {
 }
 
 .section-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 var(--spacing-lg);
+  width: 100%;
+  
+  @media (max-width: 1024px) {
+    padding: 0 var(--spacing-md);
+  }
   
   @media (max-width: 768px) {
     padding: 0 var(--spacing-md);
+  }
+
+  @media (max-width: 480px) {
+    padding: 0 var(--spacing-sm);
   }
 }
 
@@ -266,6 +284,19 @@ a {
   justify-content: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  
+  @media (max-width: 768px) {
+    font-size: 0.8125rem;
+    padding: calc(var(--spacing-sm) * 0.875) calc(var(--spacing-lg) * 0.875);
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.75rem;
+    padding: calc(var(--spacing-sm) * 0.75) var(--spacing-md);
+  }
   font-family: var(--font-body);
   font-size: 0.875rem;
   font-weight: 500;

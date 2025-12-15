@@ -40,6 +40,36 @@
   }
 }
 
+// Dome Gallery Section
+.dome-gallery-section {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  padding: var(--spacing-3xl) 0;
+  background: transparent;
+  overflow: hidden;
+  border: none;
+  box-shadow: none;
+
+  @media (max-width: 992px) {
+    padding: var(--spacing-2xl) 0;
+  }
+}
+
+.dome-gallery-container {
+  width: 100%;
+  height: 900px;
+  border: none;
+  box-shadow: none;
+
+  @media (max-width: 992px) {
+    height: 700px;
+  }
+
+  @media (max-width: 576px) {
+    height: 550px;
+  }
+}
+
 // Section loading placeholder
 .section-loader {
   display: flex;
