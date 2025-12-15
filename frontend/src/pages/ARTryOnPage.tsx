@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MindARThree } from 'mind-ar/dist/mindar-face-three.prod.js'
 import './ARTryOnPage.scss'
 
 // AR config for glasses positioning
@@ -133,50 +136,13 @@ const ARTryOnPage = () => {
         return
       }
 
-      // Wait for MindAR to be loaded from CDN
-      const waitForMindAR = () => {
-        return new Promise<void>((resolve, reject) => {
-          if ((window as any).MINDAR?.FACE?.MindARThree) {
-            resolve()
-            return
-          }
-          
-          let attempts = 0
-          const maxAttempts = 50
-          const checkInterval = setInterval(() => {
-            attempts++
-            if ((window as any).MINDAR?.FACE?.MindARThree) {
-              clearInterval(checkInterval)
-              resolve()
-            } else if (attempts >= maxAttempts) {
-              clearInterval(checkInterval)
-              reject(new Error('MindAR failed to load from CDN'))
-            }
-          }, 100)
-        })
-      }
-
-      try {
-        await waitForMindAR()
-      } catch (error) {
-        console.error('MindAR loading error:', error)
-        setErrorMessage('Failed to load AR library. Please refresh the page.')
-        setLoading(false)
-        return
-      }
-
-      // Use global MindARThree from CDN
-      const MindARThree = (window as any).MINDAR.FACE.MindARThree
-      const THREE = await import('three')
-      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
-
       // Create MindAR instance with face tracking
       // Use filter settings for smoother tracking (less jitter)
       const mindarThree = new MindARThree({
         container: containerRef.current,
         filterMinCF: 0.0001,  // Lower = more stable but slower response
         filterBeta: 10,       // Higher = faster response but more jitter
-      } as any)
+      })
 
       mindarRef.current = mindarThree
 

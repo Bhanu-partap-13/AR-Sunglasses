@@ -16,11 +16,12 @@
     "framer-motion": "^11.11.17",
     "gsap": "^3.12.5",
     "lenis": "^1.1.17",
+    "mind-ar": "1.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
     "recharts": "^2.15.0",
-    "three": "^0.170.0",
+    "three": "^0.160.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
