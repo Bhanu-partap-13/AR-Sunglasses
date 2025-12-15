@@ -52,35 +52,35 @@ const SUNGLASSES_IMAGES: ImageItem[] = [
     alt: 'Sport Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1473496169904-658ba7c44d8a?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     alt: 'Wayfarer Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     alt: 'Cat Eye Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     alt: 'Shield Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1624199632701-514e5c4fab0c?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     alt: 'Square Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     alt: 'Navigator Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1508296695146-257a814070b4?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     alt: 'Pilot Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1575248255933-6e8a3edc93a0?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     alt: 'Executive Sunglasses'
   },
   {
-    src: 'https://images.unsplash.com/photo-1614715838608-dd527c46231d?w=800&q=80',
+    src: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     alt: 'Active Sport Sunglasses'
   }
 ];
@@ -309,6 +309,33 @@ export default function DomeGallery({
 
   useEffect(() => {
     applyTransform(rotationRef.current.x, rotationRef.current.y);
+    
+    // Auto-rotation effect
+    let autoRotationRAF: number | null = null;
+    const autoRotationSpeed = 0.15; // degrees per frame
+    
+    const startAutoRotation = () => {
+      const animate = () => {
+        // Only rotate if not dragging and no image is focused
+        if (!draggingRef.current && !focusedElRef.current && !openingRef.current) {
+          const nextY = wrapAngleSigned(rotationRef.current.y + autoRotationSpeed);
+          rotationRef.current = { ...rotationRef.current, y: nextY };
+          applyTransform(rotationRef.current.x, nextY);
+        }
+        autoRotationRAF = requestAnimationFrame(animate);
+      };
+      autoRotationRAF = requestAnimationFrame(animate);
+    };
+    
+    // Start auto-rotation after a short delay
+    const timeoutId = setTimeout(startAutoRotation, 1000);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      if (autoRotationRAF) {
+        cancelAnimationFrame(autoRotationRAF);
+      }
+    };
   }, []);
 
   const stopInertia = useCallback(() => {
