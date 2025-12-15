@@ -133,42 +133,111 @@ const ARTryOnPage = () => {
         return
       }
 
-      // Wait for MindAR to be loaded from CDN
-      const waitForMindAR = () => {
-        return new Promise<void>((resolve, reject) => {
+      // Dynamically load MindAR from CDN with fallbacks
+      const loadMindARScript = (): Promise<any> => {
+        return new Promise((resolve, reject) => {
+          // Check if already loaded
           if ((window as any).MINDAR?.FACE?.MindARThree) {
-            resolve()
+            console.log('MindAR already loaded')
+            resolve((window as any).MINDAR.FACE.MindARThree)
             return
           }
-          
-          let attempts = 0
-          const maxAttempts = 50
-          const checkInterval = setInterval(() => {
-            attempts++
-            if ((window as any).MINDAR?.FACE?.MindARThree) {
-              clearInterval(checkInterval)
-              resolve()
-            } else if (attempts >= maxAttempts) {
-              clearInterval(checkInterval)
-              reject(new Error('MindAR failed to load from CDN'))
+
+          // We need to load Three.js first, then MindAR face tracking
+          // Using older compatible versions that work together
+          const loadScript = (url: string, isModule = false): Promise<void> => {
+            return new Promise((res, rej) => {
+              const existing = document.querySelector(`script[src="${url}"]`)
+              if (existing) {
+                res()
+                return
+              }
+              
+              const script = document.createElement('script')
+              script.src = url
+              if (isModule) {
+                script.type = 'module'
+              }
+              script.onload = () => res()
+              script.onerror = () => rej(new Error(`Failed to load: ${url}`))
+              document.head.appendChild(script)
+            })
+          }
+
+          const loadMindAR = async () => {
+            try {
+              // Load Three.js r136 (compatible with MindAR 1.2.5)
+              console.log('Loading Three.js r136...')
+              await loadScript('https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js')
+              
+              // Load MindAR face (non-module version built for Three.js globals)
+              console.log('Loading MindAR face tracking...')
+              await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-three.prod.js')
+              
+              // Wait for it to initialize on window
+              let attempts = 0
+              const checkReady = setInterval(() => {
+                attempts++
+                if ((window as any).MINDAR?.FACE?.MindARThree) {
+                  clearInterval(checkReady)
+                  console.log('MindAR ready!')
+                  resolve((window as any).MINDAR.FACE.MindARThree)
+                } else if (attempts > 50) {
+                  clearInterval(checkReady)
+                  reject(new Error('MindAR initialization timeout'))
+                }
+              }, 100)
+            } catch (error) {
+              reject(error)
             }
-          }, 100)
+          }
+
+          loadMindAR()
         })
       }
 
+      let MindARThree
       try {
-        await waitForMindAR()
+        console.log('Loading MindAR...')
+        MindARThree = await loadMindARScript()
+        console.log('MindAR loaded successfully')
       } catch (error) {
         console.error('MindAR loading error:', error)
-        setErrorMessage('Failed to load AR library. Please refresh the page.')
-        setLoading(false)
+        setErrorMessage('Failed to load AR library. Please check your internet connection and refresh the page.')
+        setIsLoading(false)
+        isInitializing.current = false
         return
       }
-
-      // Use global MindARThree from CDN
-      const MindARThree = (window as any).MINDAR.FACE.MindARThree
-      const THREE = await import('three')
-      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
+      
+      // Use the global THREE loaded from CDN (r136, compatible with MindAR)
+      const THREE = (window as any).THREE
+      if (!THREE) {
+        setErrorMessage('Three.js failed to load. Please refresh the page.')
+        setIsLoading(false)
+        isInitializing.current = false
+        return
+      }
+      
+      // Load GLTFLoader from CDN
+      const loadGLTFLoader = async (): Promise<any> => {
+        // Check if already available
+        if ((window as any).THREE.GLTFLoader) {
+          return (window as any).THREE.GLTFLoader
+        }
+        
+        // Load GLTFLoader addon
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/loaders/GLTFLoader.js'
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error('Failed to load GLTFLoader'))
+          document.head.appendChild(script)
+        })
+        
+        return (window as any).THREE.GLTFLoader
+      }
+      
+      const GLTFLoader = await loadGLTFLoader()
 
       // Create MindAR instance with face tracking
       // Use filter settings for smoother tracking (less jitter)
@@ -184,7 +253,8 @@ const ARTryOnPage = () => {
 
       // Configure renderer for better visibility
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-      renderer.outputColorSpace = THREE.SRGBColorSpace
+      // Use r136 API (outputEncoding instead of outputColorSpace)
+      renderer.outputEncoding = THREE.sRGBEncoding
       renderer.toneMapping = THREE.ACESFilmicToneMapping
       renderer.toneMappingExposure = 1.2
 
@@ -305,19 +375,33 @@ const ARTryOnPage = () => {
       // Add Face Mesh as occluder to make glasses temples go behind the head/ears
       // This creates a realistic effect where the temples disappear behind the face
       try {
+        console.log('Adding face mesh occluder...')
         // Use type assertion since TypeScript types don't include addFaceMesh
         const faceMesh = (mindarThree as any).addFaceMesh()
-        // Create an invisible material that only writes to depth buffer
-        // This makes objects behind it invisible while the mesh itself is invisible
-        const occluderMaterial = new THREE.MeshBasicMaterial({
-          colorWrite: false,  // Don't write color - invisible
-          side: THREE.DoubleSide,
-        })
-        faceMesh.material = occluderMaterial
-        scene.add(faceMesh)
-        console.log('Face occluder mesh added for realistic glasses rendering')
+        
+        if (faceMesh) {
+          // Create an invisible material that only writes to depth buffer
+          // This makes objects behind it invisible while the mesh itself is invisible
+          const occluderMaterial = new THREE.MeshBasicMaterial({
+            colorWrite: false,  // Don't write color - makes mesh invisible
+            depthWrite: true,   // Write to depth buffer - occludes objects behind it
+            side: THREE.DoubleSide, // Render both sides
+          })
+          
+          faceMesh.material = occluderMaterial
+          
+          // Make sure occluder renders before glasses
+          faceMesh.renderOrder = -1
+          glassesGroup.renderOrder = 0
+          
+          scene.add(faceMesh)
+          console.log('Face occluder mesh successfully added - temples will now go behind ears')
+        } else {
+          console.warn('faceMesh returned null/undefined')
+        }
       } catch (occluderError) {
-        console.warn('Could not add face occluder:', occluderError)
+        console.warn('Could not add face occluder mesh:', occluderError)
+        console.warn('Glasses will still work but temples may not hide behind ears realistically')
         // Continue without occluder - glasses will still work but won't hide behind ears
       }
 
