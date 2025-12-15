@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { MindARThree } from 'mind-ar/dist/mindar-face-three.prod.js'
 import './ARTryOnPage.scss'
 
 // AR config for glasses positioning
@@ -135,6 +134,19 @@ const ARTryOnPage = () => {
         }
         return
       }
+
+      // Load MindAR from CDN
+      if (!(window as any).MINDAR?.FACE?.MindARThree) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-three.prod.js'
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error('Failed to load MindAR'))
+          document.head.appendChild(script)
+        })
+      }
+
+      const MindARThree = (window as any).MINDAR.FACE.MindARThree
 
       // Create MindAR instance with face tracking
       // Use filter settings for smoother tracking (less jitter)
