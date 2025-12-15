@@ -30,6 +30,7 @@ const Footer: React.FC = memo(() => {
               <ul className="footer-list">
                 <li><a href="/customize">3D Try-On</a></li>
                 <li><a href="/collection">Virtual Collection</a></li>
+                <li><a href="/collection">Collections</a></li>
                 <li><a href="/customize">Custom Design</a></li>
                 <li><a href="/dashboard">Premium Dashboard</a></li>
                 <li><a href="/collection">AR Experience</a></li>
