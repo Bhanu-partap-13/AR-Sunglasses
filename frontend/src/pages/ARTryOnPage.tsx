@@ -150,8 +150,7 @@ const ARTryOnPage = () => {
 
       // Configure renderer for better visibility
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-      // Use r136 API (outputEncoding instead of outputColorSpace)
-      renderer.outputEncoding = THREE.sRGBEncoding
+      renderer.outputColorSpace = THREE.SRGBColorSpace
       renderer.toneMapping = THREE.ACESFilmicToneMapping
       renderer.toneMappingExposure = 1.2
 
