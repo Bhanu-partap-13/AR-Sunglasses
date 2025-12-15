@@ -1,11 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { motion } from 'framer-motion'
 import './Features.scss'
 
-gsap.registerPlugin(ScrollTrigger)
-
-// Feature data with titles, descriptions, and high-quality images
+// Feature data
 const features = [
   {
     id: 1,
@@ -41,124 +37,56 @@ const features = [
   }
 ]
 
-const Features: React.FC = () => {
-  const sectionRef = useRef<HTMLElement>(null)
-  const imageContainerRef = useRef<HTMLDivElement>(null)
-  const textItemsRef = useRef<(HTMLDivElement | null)[]>([])
-  const [activeIndex, setActiveIndex] = useState(0)
-
-  useEffect(() => {
-    if (!sectionRef.current || !imageContainerRef.current) return
-
-    const images = imageContainerRef.current.querySelectorAll('.feature-image-item')
-
-    // Setup scroll-triggered image transitions
-    textItemsRef.current.forEach((item, index) => {
-      if (!item) return
-
-      ScrollTrigger.create({
-        trigger: item,
-        start: 'top center',
-        end: 'bottom center',
-        onEnter: () => {
-          setActiveIndex(index)
-          // Fade out all images
-          gsap.to(images, {
-            opacity: 0,
-            duration: 0.4,
-            ease: 'power2.inOut'
-          })
-          // Fade in current image
-          gsap.to(images[index], {
-            opacity: 1,
-            duration: 0.6,
-            delay: 0.2,
-            ease: 'power2.out'
-          })
-        },
-        onEnterBack: () => {
-          setActiveIndex(index)
-          gsap.to(images, {
-            opacity: 0,
-            duration: 0.4,
-            ease: 'power2.inOut'
-          })
-          gsap.to(images[index], {
-            opacity: 1,
-            duration: 0.6,
-            delay: 0.2,
-            ease: 'power2.out'
-          })
-        }
-      })
-
-      // Animate text items on scroll
-      gsap.fromTo(
-        item,
-        { opacity: 0, y: 50 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.8,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: item,
-            start: 'top 80%',
-            toggleActions: 'play none none reverse'
-          }
-        }
-      )
-    })
-
-    // Pin the image container only within features section
-    ScrollTrigger.create({
-      trigger: sectionRef.current,
-      start: 'top top',
-      end: 'bottom bottom',
-      pin: imageContainerRef.current,
-      pinSpacing: false,
-      anticipatePin: 1
-    })
-
-    return () => {
-      ScrollTrigger.getAll().forEach(trigger => trigger.kill())
-    }
-  }, [])
-
+const FeatureItem = ({ feature, index }: { feature: typeof features[0], index: number }) => {
+  const isEven = index % 2 === 0
+  
   return (
-    <section id="features" className="features-section" ref={sectionRef}>
-      <div className="features-container">
-        {/* Fixed Image Panel - Left Side */}
-        <div className="features-image-panel" ref={imageContainerRef}>
-          <div className="image-wrapper">
-            {features.map((feature, index) => (
-              <div 
-                key={feature.id} 
-                className={`feature-image-item ${activeIndex === index ? 'active' : ''}`}
-                style={{ '--accent-color': feature.color } as React.CSSProperties}
-              >
-                <img src={feature.image} alt={feature.title} loading="lazy" />
-                <div className="image-accent-border" />
-              </div>
-            ))}
-          </div>
+    <motion.div 
+      className={`feature-row ${isEven ? 'row-even' : 'row-odd'}`}
+      initial={{ opacity: 0, y: 50 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
+    >
+      <div className="feature-content">
+        <div className="feature-text-wrapper">
+          <span className="feature-number" style={{ color: feature.color }}>0{feature.id}</span>
+          <h3 className="feature-title">{feature.title}</h3>
+          <h4 className="feature-subtitle" style={{ color: feature.color }}>{feature.subtitle}</h4>
+          <p className="feature-description">{feature.description}</p>
+          <div className="feature-accent-line" style={{ background: `linear-gradient(90deg, ${feature.color}, transparent)` }}></div>
         </div>
+      </div>
+      
+      <div className="feature-image-container">
+        <div className="image-wrapper">
+          <img src={feature.image} alt={feature.title} loading="lazy" />
+          <div className="image-overlay"></div>
+          <div className="image-border" style={{ borderColor: feature.color }}></div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
-        {/* Scrolling Text Content - Right Side */}
-        <div className="features-text-panel">
+const Features: React.FC = () => {
+  return (
+    <section className="features-section">
+      <div className="features-container">
+        <div className="features-header">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="section-title"
+          >
+            Why Choose <span className="accent">Luxe Optics</span>
+          </motion.h2>
+        </div>
+        
+        <div className="features-list">
           {features.map((feature, index) => (
-            <div
-              key={feature.id}
-              ref={(el) => { textItemsRef.current[index] = el }}
-              className="feature-text-item"
-              style={{ '--feature-color': feature.color } as React.CSSProperties}
-            >
-              <div className="feature-number">0{index + 1}</div>
-              <h3 className="feature-title">{feature.title}</h3>
-              <p className="feature-subtitle">{feature.subtitle}</p>
-              <p className="feature-description">{feature.description}</p>
-              <div className="feature-accent-line" />
-            </div>
+            <FeatureItem key={feature.id} feature={feature} index={index} />
           ))}
         </div>
       </div>

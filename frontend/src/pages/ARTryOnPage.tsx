@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+// import * as THREE from 'three' // Removed to use CDN version
+// import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js' // Removed to use CDN version
 import './ARTryOnPage.scss'
 
 // AR config for glasses positioning
@@ -135,18 +135,14 @@ const ARTryOnPage = () => {
         return
       }
 
-      // Load MindAR from CDN
-      if (!(window as any).MINDAR?.FACE?.MindARThree) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script')
-          script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-three.prod.js'
-          script.onload = () => resolve()
-          script.onerror = () => reject(new Error('Failed to load MindAR'))
-          document.head.appendChild(script)
-        })
-      }
-
-      const MindARThree = (window as any).MINDAR.FACE.MindARThree
+      // Load MindAR and Three.js from CDN via Import Map
+      // This ensures we use the same Three.js instance that MindAR uses
+      // @ts-ignore
+      const THREE = await import('three')
+      // @ts-ignore
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
+      // @ts-ignore
+      const { MindARThree } = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-three.prod.js')
 
       // Create MindAR instance with face tracking
       // Use filter settings for smoother tracking (less jitter)

@@ -8,18 +8,6 @@ const Hero: React.FC = memo(() => {
   return (
     <section id="hero" className="hero-section" ref={sectionRef}>
       <div className="hero-background">
-        {/* Video Background */}
-        <video 
-          className="hero-video"
-          autoPlay 
-          loop 
-          muted 
-          playsInline
-          preload="auto"
-        >
-          <source src="/videos/video.mp4" type="video/mp4" />
-        </video>
-        <div className="video-overlay"></div>
         <div className="gradient-overlay"></div>
       </div>
 

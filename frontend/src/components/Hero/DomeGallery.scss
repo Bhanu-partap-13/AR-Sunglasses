@@ -2,8 +2,8 @@
   position: relative;
   width: 100%;
   height: 100%;
-  --radius: 520px;
-  --viewer-pad: 72px;
+  --radius: clamp(280px, 35vw, 520px);
+  --viewer-pad: clamp(20px, 5vw, 72px);
   --circ: calc(var(--radius) * 3.14);
   --rot-y: calc((360deg / var(--segments-x)) / 2);
   --rot-x: calc((360deg / var(--segments-y)) / 2);
@@ -31,6 +31,8 @@ main.sphere-main {
   user-select: none;
   -webkit-user-select: none;
   background: transparent;
+  z-index: 1;
+  isolation: isolate;
 }
 
 .stage {
