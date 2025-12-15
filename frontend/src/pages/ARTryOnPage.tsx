@@ -150,7 +150,8 @@ const ARTryOnPage = () => {
 
       // Configure renderer for better visibility
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-      renderer.outputColorSpace = THREE.SRGBColorSpace
+      // Use r136 API (outputEncoding instead of outputColorSpace)
+      renderer.outputEncoding = THREE.sRGBEncoding
       renderer.toneMapping = THREE.ACESFilmicToneMapping
       renderer.toneMappingExposure = 1.2
 
@@ -271,19 +272,33 @@ const ARTryOnPage = () => {
       // Add Face Mesh as occluder to make glasses temples go behind the head/ears
       // This creates a realistic effect where the temples disappear behind the face
       try {
+        console.log('Adding face mesh occluder...')
         // Use type assertion since TypeScript types don't include addFaceMesh
         const faceMesh = (mindarThree as any).addFaceMesh()
-        // Create an invisible material that only writes to depth buffer
-        // This makes objects behind it invisible while the mesh itself is invisible
-        const occluderMaterial = new THREE.MeshBasicMaterial({
-          colorWrite: false,  // Don't write color - invisible
-          side: THREE.DoubleSide,
-        })
-        faceMesh.material = occluderMaterial
-        scene.add(faceMesh)
-        console.log('Face occluder mesh added for realistic glasses rendering')
+        
+        if (faceMesh) {
+          // Create an invisible material that only writes to depth buffer
+          // This makes objects behind it invisible while the mesh itself is invisible
+          const occluderMaterial = new THREE.MeshBasicMaterial({
+            colorWrite: false,  // Don't write color - makes mesh invisible
+            depthWrite: true,   // Write to depth buffer - occludes objects behind it
+            side: THREE.DoubleSide, // Render both sides
+          })
+          
+          faceMesh.material = occluderMaterial
+          
+          // Make sure occluder renders before glasses
+          faceMesh.renderOrder = -1
+          glassesGroup.renderOrder = 0
+          
+          scene.add(faceMesh)
+          console.log('Face occluder mesh successfully added - temples will now go behind ears')
+        } else {
+          console.warn('faceMesh returned null/undefined')
+        }
       } catch (occluderError) {
-        console.warn('Could not add face occluder:', occluderError)
+        console.warn('Could not add face occluder mesh:', occluderError)
+        console.warn('Glasses will still work but temples may not hide behind ears realistically')
         // Continue without occluder - glasses will still work but won't hide behind ears
       }
 

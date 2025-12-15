@@ -94,8 +94,8 @@
 
 .filter-btn {
   padding: 0.625rem 1.25rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(50, 45, 35, 0.4) 0%, rgba(38, 34, 25, 0.35) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: var(--radius-full);
   color: var(--color-text-secondary);
   font-family: var(--font-body);
@@ -106,16 +106,16 @@
   white-space: nowrap;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(212, 175, 55, 0.3);
+    background: linear-gradient(135deg, rgba(70, 60, 45, 0.6) 0%, rgba(55, 48, 35, 0.55) 100%);
+    border-color: rgba(212, 175, 55, 0.4);
     transform: translateY(-1px);
   }
 
   &.active {
-    background: rgba(212, 175, 55, 0.1);
+    background: linear-gradient(135deg, rgba(90, 75, 55, 0.8) 0%, rgba(70, 60, 45, 0.75) 100%);
     border-color: var(--color-gold);
     color: var(--color-gold);
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -136,8 +136,8 @@
   position: relative;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: rgba(26, 26, 26, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(135deg, rgba(50, 45, 35, 0.75) 0%, rgba(38, 34, 25, 0.7) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.15);
   cursor: pointer;
   transition: all var(--transition-luxury);
 

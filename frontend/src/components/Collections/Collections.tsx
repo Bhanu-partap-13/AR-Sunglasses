@@ -24,7 +24,7 @@ const products = [
     price: '$1,299',
     material: 'Carbon Fiber',
     modelPath: '/models/glasses-8b.glb',
-    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
   {
@@ -46,7 +46,7 @@ const products = [
     price: '$1,099',
     material: 'Aluminum',
     modelPath: '/models/glasses6.glb',
-    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
   {
@@ -57,7 +57,7 @@ const products = [
     price: '$1,499',
     material: 'Gold Plated',
     modelPath: '/models/glasses-7b.glb',
-    image: 'https://images.unsplash.com/photo-1473496169904-658ba7c44d8a?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'regular'
   },
   {
@@ -68,7 +68,7 @@ const products = [
     price: '$999',
     material: 'Acetate',
     modelPath: '/models/glasses-7c.glb',
-    image: 'https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'large'
   },
   {
@@ -79,7 +79,7 @@ const products = [
     price: '$1,199',
     material: 'Polycarbonate',
     modelPath: '/models/glasses-9b.glb',
-    image: 'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
   {
@@ -90,7 +90,7 @@ const products = [
     price: '$849',
     material: 'Horn',
     modelPath: '/models/glasses-9c.glb',
-    image: 'https://images.unsplash.com/photo-1624199632701-514e5c4fab0c?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'regular'
   },
   {
@@ -101,7 +101,7 @@ const products = [
     price: '$749',
     material: 'Titanium',
     modelPath: '/models/glasses5.glb',
-    image: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'large'
   },
   {
@@ -112,7 +112,7 @@ const products = [
     price: '$699',
     material: 'Acetate',
     modelPath: '/models/glasses3.glb',
-    image: 'https://images.unsplash.com/photo-1508296695146-257a814070b4?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
   {
@@ -123,7 +123,7 @@ const products = [
     price: '$1,349',
     material: 'Carbon Fiber',
     modelPath: '/models/glasses4.glb',
-    image: 'https://images.unsplash.com/photo-1575248255933-6e8a3edc93a0?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
   {
@@ -134,7 +134,7 @@ const products = [
     price: '$899',
     material: 'Polycarbonate',
     modelPath: '/models/glasses-5b.glb',
-    image: 'https://images.unsplash.com/photo-1614715838608-dd527c46231d?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'large'
   },
   {
@@ -145,7 +145,7 @@ const products = [
     price: '$949',
     material: 'Aluminum',
     modelPath: '/models/glasses-5c.glb',
-    image: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'regular'
   },
   {
@@ -156,7 +156,7 @@ const products = [
     price: '$1,099',
     material: 'Horn',
     modelPath: '/models/glasses-10.glb',
-    image: 'https://images.unsplash.com/photo-1591076482161-42ce6da69f67?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
   {
@@ -167,7 +167,7 @@ const products = [
     price: '$1,199',
     material: 'Titanium',
     modelPath: '/models/glasses-11b.glb',
-    image: 'https://images.unsplash.com/photo-1619451334792-150fd785ee74?w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'large'
   },
   {

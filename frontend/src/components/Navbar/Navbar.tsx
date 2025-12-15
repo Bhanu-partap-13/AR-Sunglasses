@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { gsap } from 'gsap'
+import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
 import { useAppStore } from '@/store'
 import './Navbar.scss'
+
+// Register GSAP plugins
+gsap.registerPlugin(ScrollToPlugin)
 
 const navLinks = [
   { href: '/', label: 'Home', isRoute: true },
@@ -41,7 +46,7 @@ const Navbar: React.FC = memo(() => {
     if (isRoute) {
       // Navigate to a different page
       navigate(href)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      gsap.to(window, { duration: 0.6, scrollTo: 0, ease: 'power3.out' })
     } else {
       // If we're not on home page, go to home first then scroll
       if (location.pathname !== '/') {
@@ -52,20 +57,24 @@ const Navbar: React.FC = memo(() => {
           const element = document.getElementById(targetId)
           if (element) {
             const offset = 80
-            const elementPosition = element.getBoundingClientRect().top
-            const offsetPosition = elementPosition + window.pageYOffset - offset
-            window.scrollTo({ top: offsetPosition, behavior: 'smooth' })
+            gsap.to(window, {
+              duration: 1,
+              scrollTo: { y: element, offsetY: offset },
+              ease: 'power3.inOut'
+            })
           }
         }, 100)
       } else {
-        // Scroll to section on same page
+        // Smooth scroll to section on same page with GSAP
         const targetId = href.replace('#', '')
         const element = document.getElementById(targetId)
         if (element) {
           const offset = 80
-          const elementPosition = element.getBoundingClientRect().top
-          const offsetPosition = elementPosition + window.pageYOffset - offset
-          window.scrollTo({ top: offsetPosition, behavior: 'smooth' })
+          gsap.to(window, {
+            duration: 1,
+            scrollTo: { y: element, offsetY: offset },
+            ease: 'power3.inOut'
+          })
         }
       }
     }
@@ -190,6 +199,15 @@ const Navbar: React.FC = memo(() => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4, duration: 0.5 }}
                   >
+                    <video 
+                      className="menu-video"
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline
+                    >
+                      <source src="/videos/video.mp4" type="video/mp4" />
+                    </video>
                     <span className="video-time">1.00</span>
                   </motion.div>
                   <motion.div 

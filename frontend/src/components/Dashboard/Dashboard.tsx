@@ -216,6 +216,7 @@ const Dashboard: React.FC = () => {
                     label={({ name, value }) => `${name}: ${value}%`}
                     outerRadius={80}
                     dataKey="value"
+                    style={{ fill: '#FFFFFF', fontSize: '12px', fontWeight: '500' }}
                   >
                     {lensSelectionData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -228,7 +229,8 @@ const Dashboard: React.FC = () => {
                       borderRadius: '8px',
                       padding: '12px'
                     }}
-                    itemStyle={{ color: '#F5F5F0' }}
+                    labelStyle={{ color: '#FFFFFF' }}
+                    itemStyle={{ color: '#FFFFFF' }}
                   />
                 </PieChart>
               </ResponsiveContainer>

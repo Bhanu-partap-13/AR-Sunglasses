@@ -1,6 +1,5 @@
 import { useRef, memo } from 'react'
 import { motion } from 'framer-motion'
-import DomeGallery from './DomeGallery'
 import './Hero.scss'
 
 const Hero: React.FC = memo(() => {
@@ -9,9 +8,22 @@ const Hero: React.FC = memo(() => {
   return (
     <section id="hero" className="hero-section" ref={sectionRef}>
       <div className="hero-background">
+        {/* Video Background */}
+        <video 
+          className="hero-video"
+          autoPlay 
+          loop 
+          muted 
+          playsInline
+          preload="auto"
+        >
+          <source src="/videos/video.mp4" type="video/mp4" />
+        </video>
+        <div className="video-overlay"></div>
         <div className="gradient-overlay"></div>
       </div>
 
+      {/* Centered Text Content */}
       <div className="hero-content">
         <motion.div 
           className="hero-text"
@@ -34,25 +46,6 @@ const Hero: React.FC = memo(() => {
               <span>Customize Your Pair</span>
             </a>
           </div>
-        </motion.div>
-
-        <motion.div 
-          className="hero-3d-container"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-        >
-          <DomeGallery 
-            overlayBlurColor="#0a0a0a"
-            grayscale={false}
-            imageBorderRadius="16px"
-            openedImageBorderRadius="20px"
-            openedImageWidth="450px"
-            openedImageHeight="450px"
-            fit={0.55}
-            minRadius={400}
-            segments={30}
-          />
         </motion.div>
       </div>
     </section>
