@@ -192,7 +192,7 @@ const ARTryOnPage = () => {
         loader.load(
           product.modelPath,
           resolve,
-          (progress) => {
+          (progress: ProgressEvent) => {
             console.log('Loading model:', (progress.loaded / progress.total * 100).toFixed(0) + '%')
           },
           reject
