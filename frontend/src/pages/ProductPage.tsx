@@ -219,6 +219,149 @@ const productData: Record<string, {
       { name: 'Dark Horn', hex: '#3C2415' },
       { name: 'Blonde Horn', hex: '#C4A777' }
     ]
+  },
+  'glasses3': {
+    id: 'glasses3',
+    name: 'Pilot Classic',
+    collection: 'Vintage',
+    price: '$699',
+    description: 'Timeless pilot-style frames with a retro aesthetic and modern durability.',
+    material: 'Acetate',
+    features: ['Classic Pilot Shape', 'UV400 Protection', 'Lightweight Frame', 'Anti-scratch Lenses', 'Spring Hinges'],
+    modelPath: '/models/glasses3.glb',
+    colors: [{ name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Gold', hex: '#D4AF37' }]
+  },
+  'glasses4': {
+    id: 'glasses4',
+    name: 'Executive',
+    collection: 'Modern',
+    price: '$1,349',
+    description: 'Sleek executive frames crafted for the discerning professional. Clean lines meet premium materials.',
+    material: 'Carbon Fiber',
+    features: ['Executive Profile', 'Carbon Fiber Frame', 'Anti-reflective Lenses', 'Titanium Hinges', 'Premium Case'],
+    modelPath: '/models/glasses4.glb',
+    colors: [{ name: 'Graphite', hex: '#4A4A4A' }, { name: 'Polished Gold', hex: '#D4AF37' }, { name: 'Midnight', hex: '#0A0A0A' }]
+  },
+  'glasses-1-': {
+    id: 'glasses-1-',
+    name: 'Signature One',
+    collection: 'Classic',
+    price: '$1,099',
+    description: 'The Signature One is the cornerstone of the collection — a frame that defines elegance and precision.',
+    material: 'Titanium',
+    features: ['Titanium Construction', 'Polarized Lenses', '100% UV Protection', 'Adjustable Nose Pads', 'Signature Engravings'],
+    modelPath: '/models/glasses-1-.glb',
+    colors: [{ name: 'Polished Silver', hex: '#C0C0C0' }, { name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Gold', hex: '#D4AF37' }]
+  },
+  'glasses-5b': {
+    id: 'glasses-5b',
+    name: 'Active Sport',
+    collection: 'Sport',
+    price: '$899',
+    description: 'Engineered for peak performance, the Active Sport frames deliver uncompromising protection.',
+    material: 'Polycarbonate',
+    features: ['Impact Resistant', 'Non-slip Temple Tips', 'UV400 Lenses', 'Ventilated Frame', 'Lightweight Design'],
+    modelPath: '/models/glasses-5b.glb',
+    colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Racing Red', hex: '#8B0000' }, { name: 'Electric Blue', hex: '#1E3A8A' }]
+  },
+  'glasses-5c': {
+    id: 'glasses-5c',
+    name: 'Runner Pro',
+    collection: 'Sport',
+    price: '$949',
+    description: 'Designed for runners and cyclists who demand the best in eyewear performance.',
+    material: 'Aluminum',
+    features: ['Aerodynamic Design', 'Hydrophobic Coating', 'Anti-fog Lenses', 'Secure Fit System', 'Interchangeable Lenses'],
+    modelPath: '/models/glasses-5c.glb',
+    colors: [{ name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Team White', hex: '#F5F5F5' }, { name: 'Neon Green', hex: '#39FF14' }]
+  },
+  'glasses-6': {
+    id: 'glasses-6',
+    name: 'Shield Sport',
+    collection: 'Sport',
+    price: '$1,049',
+    description: 'Full-shield wraparound protection for extreme sports and outdoor adventures.',
+    material: 'Polycarbonate',
+    features: ['Full Shield Design', 'Impact Resistant', 'Anti-scratch Coating', 'UV400 Protection', 'Rubberized Grip'],
+    modelPath: '/models/glasses-6.glb',
+    colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Smoke Grey', hex: '#4A4A4A' }, { name: 'Arctic White', hex: '#F0F0F0' }]
+  },
+  'glasses-7': {
+    id: 'glasses-7',
+    name: 'Square Frame',
+    collection: 'Vintage',
+    price: '$849',
+    description: 'Bold square frames inspired by the icons of the golden era of fashion.',
+    material: 'Acetate',
+    features: ['Bold Square Silhouette', 'Thick Acetate Frame', 'Crystal Clear Lenses', 'Spring Hinges', 'Vintage Hardware'],
+    modelPath: '/models/glasses-7.glb',
+    colors: [{ name: 'Classic Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Crystal Clear', hex: '#F5F5F5' }]
+  },
+  'glasses-10': {
+    id: 'glasses-10',
+    name: 'Oval Luxe',
+    collection: 'Vintage',
+    price: '$1,099',
+    description: 'Refined oval frames with a sophisticated character. Subtle luxury at its finest.',
+    material: 'Natural Horn',
+    features: ['Oval Frame Shape', 'Horn Material', 'Crystal Lenses', 'Delicate Detailing', 'Handcrafted'],
+    modelPath: '/models/glasses-10.glb',
+    colors: [{ name: 'Natural Horn', hex: '#5C4033' }, { name: 'Dark Horn', hex: '#3C2415' }, { name: 'Blonde Horn', hex: '#C4A777' }]
+  },
+  'glasses-11b': {
+    id: 'glasses-11b',
+    name: 'Edge Series B',
+    collection: 'Modern',
+    price: '$1,199',
+    description: 'Sharp angular geometry meets luxurious materials in the Edge Series B.',
+    material: 'Titanium',
+    features: ['Angular Design', 'Titanium Frame', 'Photochromic Lenses', 'Featherweight Build', 'Premium Hinges'],
+    modelPath: '/models/glasses-11b.glb',
+    colors: [{ name: 'Brushed Titanium', hex: '#878681' }, { name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Rose Gold', hex: '#B76E79' }]
+  },
+  'glasses-11c': {
+    id: 'glasses-11c',
+    name: 'Bold Series C',
+    collection: 'Modern',
+    price: '$1,249',
+    description: 'Make a statement with the Bold Series C — unapologetically modern, undeniably striking.',
+    material: 'Carbon Fiber',
+    features: ['Bold Oversized Frame', 'Carbon Fiber Build', 'Gradient Lenses', 'Gold-tone Accents', 'Limited Edition'],
+    modelPath: '/models/glasses-11c.glb',
+    colors: [{ name: 'Carbon Black', hex: '#1C1C1C' }, { name: 'Pearl White', hex: '#F5F5F5' }, { name: 'Amber Gold', hex: '#FFBF00' }]
+  },
+  'glasses-12': {
+    id: 'glasses-12',
+    name: 'Heritage Gold',
+    collection: 'Classic',
+    price: '$999',
+    description: 'A homage to the golden age of eyewear, the Heritage Gold combines timeless design with modern craftsmanship.',
+    material: 'Gold Plated',
+    features: ['Gold Plated Frame', 'Mineral Glass Lenses', 'Italian Acetate Arms', 'UV400 Protection', 'Signature Case'],
+    modelPath: '/models/glasses-12.glb',
+    colors: [{ name: 'Yellow Gold', hex: '#D4AF37' }, { name: 'Rose Gold', hex: '#B76E79' }, { name: 'Silver', hex: '#C0C0C0' }]
+  },
+  'sunglass': {
+    id: 'sunglass',
+    name: 'Classic Sunglass',
+    collection: 'Classic',
+    price: '$699',
+    description: 'A staple for every wardrobe — the Classic Sunglass pairs effortless style with everyday functionality.',
+    material: 'Acetate',
+    features: ['Timeless Shape', 'UV400 Lenses', 'Lightweight Acetate', 'Adjustable Nose Pads', 'Anti-scratch Coating'],
+    modelPath: '/models/sunglass.glb',
+    colors: [{ name: 'Classic Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Crystal', hex: '#F5F5F5' }]
+  },
+  'sunglasses': {
+    id: 'sunglasses',
+    name: 'Premium Sunglasses',
+    collection: 'Modern',
+    price: '$949',
+    description: 'Premium construction meets contemporary design. The ultimate all-day sunglasses for the modern era.',
+    material: 'Carbon Fiber',
+    features: ['Premium Carbon Frame', 'Polarized Lenses', 'UV400 Protection', 'Featherweight Build', 'Signature Hardware'],
+    modelPath: '/models/sunglasses.glb',
+    colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Gunmetal', hex: '#4A4A4A' }, { name: 'Gold', hex: '#D4AF37' }]
   }
 }
 
@@ -265,12 +408,17 @@ const GlassesModel = ({
         if (isLens) {
           child.material = new THREE.MeshPhysicalMaterial({
             color: '#374151',
-            metalness: 0,
-            roughness: 0.1,
+            metalness: 0.1,
+            roughness: 0.05,
             transmission: 0.6,
-            thickness: 0.5,
-            opacity: 0.8,
+            thickness: 1.5,
+            opacity: 1, // Keep fully opaque for proper transmission
             transparent: true,
+            side: THREE.DoubleSide, // Essential so lenses aren't invisible from back
+            depthWrite: false, 
+            envMapIntensity: 1.5,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
           })
         } else {
           child.material = new THREE.MeshStandardMaterial({

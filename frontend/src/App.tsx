@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense, lazy, useCallback, Component, ReactNode } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import Lenis from 'lenis'
 import { gsap } from 'gsap'
@@ -109,6 +109,18 @@ const ARTryOnPage = lazyWithRetry(() => import('./pages/ARTryOnPage'))
 
 // Styles
 import './App.scss'
+
+// Scroll to top on every route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    // Instant scroll — works with both Lenis and native scroll
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+  }, [pathname])
+  return null
+}
 
 // Section loading placeholder
 const SectionLoader = () => (
@@ -220,6 +232,7 @@ function App() {
       
       {/* Always render content but hide until loading complete */}
       <div className={`app-content ${isLoading ? 'hidden' : 'visible'}`}>
+        <ScrollToTop />
         <Navbar />
         <CustomCursor />
         <ErrorBoundary>

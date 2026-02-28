@@ -203,6 +203,39 @@ const products = [
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'large'
   },
+  {
+    id: 19,
+    productId: 'glasses-1-',
+    name: 'Signature One',
+    collection: 'Classic',
+    price: '$1,099',
+    material: 'Titanium',
+    modelPath: '/models/glasses-1-.glb',
+    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
+    size: 'regular'
+  },
+  {
+    id: 20,
+    productId: 'sunglass',
+    name: 'Classic Sunglass',
+    collection: 'Classic',
+    price: '$699',
+    material: 'Acetate',
+    modelPath: '/models/sunglass.glb',
+    image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
+    size: 'regular'
+  },
+  {
+    id: 21,
+    productId: 'sunglasses',
+    name: 'Premium Sunglasses',
+    collection: 'Modern',
+    price: '$949',
+    material: 'Carbon Fiber',
+    modelPath: '/models/sunglasses.glb',
+    image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
+    size: 'large'
+  },
 ]
 
 const filters = ['All', 'Classic', 'Modern', 'Vintage', 'Sport']

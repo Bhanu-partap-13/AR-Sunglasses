@@ -1,13 +1,13 @@
 # LUXE OPTICS - Premium AR Sunglasses Experience
 
-A cutting-edge web application showcasing premium luxury sunglasses with AR try-on capabilities, built with React, Vite, Three.js, and MindAR.
+A cutting-edge web application showcasing premium luxury sunglasses with AR try-on capabilities, built with React, Vite, Three.js, and Google Mediapipe.
 
 ## 🌟 Features
 
 - **Premium Loading Experience** - SVG wireframe animation with particles
 - **Hero Section with 3D** - Floating, rotating sunglasses models
 - **3D Customization Studio** - Real-time frame color, lens tint, and environment customization
-- **AR Try-On** - Face tracking with MindAR.js for virtual try-on
+- **AR Try-On** - Face tracking with Google Mediapipe for virtual try-on
 - **Real-Time Dashboard** - Analytics with Chart.js
 - **Luxury Design** - Premium color palette, typography, and animations
 - **Custom Cursor** - Premium interaction experience
@@ -19,7 +19,7 @@ A cutting-edge web application showcasing premium luxury sunglasses with AR try-
 - **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite
 - **3D Graphics**: Three.js with React Three Fiber
-- **AR**: MindAR.js for face tracking
+- **AR**: Google Mediapipe for face tracking
 - **Animations**: GSAP & Framer Motion
 - **State Management**: Zustand
 - **Styling**: SCSS with BEM methodology
@@ -92,7 +92,7 @@ Real-time 3D customization with:
 - OrbitControls for 360° viewing
 
 ### ARTryOn
-MindAR.js integration for face tracking and virtual try-on
+Google Mediapipe integration for face tracking and virtual try-on
 
 ### Dashboard
 Real-time analytics with Chart.js visualizations

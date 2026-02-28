@@ -128,16 +128,24 @@ const CustomizableGlasses = ({
               metalness: 1,
               roughness: 0.05,
               envMapIntensity: 2,
+              side: THREE.DoubleSide,
             })
           } else {
             child.material = new THREE.MeshPhysicalMaterial({
               color: lensConfig.color,
-              metalness: 0,
-              roughness: 0.1,
+              attenuationColor: lensConfig.color, // Crucial for tinting light passing through
+              attenuationDistance: 2.0, // Controls how quickly the tint applies
+              metalness: 0.1,
+              roughness: 0.05,
               transmission: lensTransparency,
-              thickness: 0.5,
-              opacity: 1 - lensTransparency * 0.3,
+              thickness: 1.5, // More thickness to simulate real glass
+              opacity: 1, // Keep fully opaque to make transmission work correctly
               transparent: true,
+              side: THREE.DoubleSide, // Essential so lenses aren't invisible from back
+              depthWrite: false, // Prevents Z-fighting issues with transparent objects
+              envMapIntensity: 1.5, // Brings back natural reflections
+              clearcoat: 1.0, // Adds high-gloss finish
+              clearcoatRoughness: 0.1
             })
           }
         } else {
@@ -191,8 +199,8 @@ const ScreenshotHandler = ({ onReady }: { onReady: (fn: () => void) => void }) =
 const Customizer: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState('/models/glasses1.glb')
   const [selectedFrame, setSelectedFrame] = useState(0)
-  const [selectedLens, setSelectedLens] = useState(0)
-  const [selectedEnv, setSelectedEnv] = useState(0)
+  const [selectedLens, setSelectedLens] = useState(4) // Mirror Gold default (index 4)
+  const [selectedEnv, setSelectedEnv] = useState(3) // Forest default (index 3)
   const [lensTransparency, setLensTransparency] = useState(0.7)
   const modelRef = useRef()
   const screenshotRef = useRef<(() => void) | null>(null)
@@ -298,9 +306,14 @@ const Customizer: React.FC = () => {
                 color="#FFF8E7"
               />
               
-              <Environment preset={environments[selectedEnv].preset as any} background={false} />
-              
               <Suspense fallback={<Loader />}>
+                {/* Environment moved inside Suspense to prevent layout jumps when loading new HDRIs */}
+                <Environment 
+                  preset={environments[selectedEnv].preset as any} 
+                  background={true} 
+                  blur={0.2} // Slight blur keeps focus on glasses while clearly showing the environment
+                />
+                
                 {/* Shadow receiving plane */}
                 <mesh 
                   rotation={[-Math.PI / 2, 0, 0]} 

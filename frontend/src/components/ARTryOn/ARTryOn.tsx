@@ -111,7 +111,7 @@ const ARTryOn: React.FC = () => {
         }}>
           {[
             { icon: '📷', title: 'Real-Time Preview', desc: 'See glasses on your face instantly' },
-            { icon: '🎯', title: 'Face Tracking', desc: 'Advanced MindAR technology' },
+            { icon: '🎯', title: 'Face Tracking', desc: 'Google Mediapipe technology' },
             { icon: '📱', title: 'No App Required', desc: 'Works in your browser' },
           ].map((feature, idx) => (
             <div 

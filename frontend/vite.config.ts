@@ -30,7 +30,22 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false, // Disable sourcemaps in production for better performance
     chunkSizeWarningLimit: 1600,
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'three-vendor': ['three'],
+          'animation-vendor': ['framer-motion', 'gsap'],
+          'mediapipe-vendor': ['@mediapipe/face_mesh'],
+        },
+      },
+    },
+  },
+  optimizeDeps: {
+    include: ['three', '@mediapipe/face_mesh'],
+    exclude: [],
   },
 })
