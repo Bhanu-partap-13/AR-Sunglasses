@@ -14,6 +14,103 @@ import Navbar from './components/Navbar/Navbar'
 import Footer from './components/Footer/Footer'
 import CustomCursor from './components/CustomCursor/CustomCursor'
 
+// ─── Animated fallback shown when a page fails to load ──────────────────────
+const AnimatedFallback = () => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: '#050508',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: '2rem', fontFamily: 'inherit',
+  }}>
+    {/* Ambient glow ring */}
+    <div style={{
+      position: 'absolute',
+      width: 320, height: 320,
+      borderRadius: '50%',
+      background: 'radial-gradient(circle, rgba(212,175,55,0.12) 0%, transparent 70%)',
+      animation: 'fb-pulse 2.8s ease-in-out infinite',
+    }} />
+
+    {/* Sunglasses SVG */}
+    <div style={{ position: 'relative', animation: 'fb-float 3s ease-in-out infinite' }}>
+      <svg width="110" height="46" viewBox="0 0 110 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Left lens */}
+        <rect x="4" y="10" width="40" height="26" rx="13" fill="rgba(212,175,55,0.08)" stroke="#D4AF37" strokeWidth="2"/>
+        {/* Right lens */}
+        <rect x="66" y="10" width="40" height="26" rx="13" fill="rgba(212,175,55,0.08)" stroke="#D4AF37" strokeWidth="2"/>
+        {/* Bridge */}
+        <path d="M44 23 Q55 17 66 23" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" fill="none"/>
+        {/* Left arm */}
+        <path d="M4 23 L0 25" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round"/>
+        {/* Right arm */}
+        <path d="M106 23 L110 25" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round"/>
+        {/* Lens shine left */}
+        <path d="M14 16 Q18 14 22 16" stroke="rgba(212,175,55,0.45)" strokeWidth="1.2" strokeLinecap="round"/>
+        {/* Lens shine right */}
+        <path d="M76 16 Q80 14 84 16" stroke="rgba(212,175,55,0.45)" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+
+      {/* Sparkles */}
+      {[[-18,-14,'fb-sp1'],[ 22,-22,'fb-sp2'],[  40,-8,'fb-sp3'],[-30, 8,'fb-sp4']].map(([x,y,cls]) => (
+        <div key={cls as string} style={{
+          position:'absolute', top:'50%', left:'50%',
+          transform:`translate(${x}px,${y}px)`,
+          width:4, height:4, borderRadius:'50%',
+          background:'#D4AF37',
+          animation:`${cls} 2.4s ease-in-out infinite`,
+        }}/>
+      ))}
+    </div>
+
+    {/* Heading */}
+    <div style={{ textAlign: 'center' }}>
+      <div style={{
+        fontSize: '1.05rem',
+        fontWeight: 600,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        color: 'rgba(255,255,255,0.75)',
+        marginBottom: '0.55rem',
+      }}>Something went wrong</div>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          fontSize: '0.72rem',
+          letterSpacing: '0.12em',
+          color: 'rgba(212,175,55,0.65)',
+          background: 'none', border: 'none',
+          cursor: 'pointer', textDecoration: 'underline',
+          textUnderlineOffset: 3,
+          textTransform: 'uppercase',
+          padding: 0,
+          transition: 'color 0.2s',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.color='#D4AF37')}
+        onMouseLeave={e => (e.currentTarget.style.color='rgba(212,175,55,0.65)')}
+      >refresh the page</button>
+    </div>
+
+    {/* Thin gold progress bar at bottom */}
+    <div style={{
+      position:'absolute', bottom:0, left:0,
+      width:'100%', height:2,
+      background:'linear-gradient(90deg,transparent,#D4AF37,transparent)',
+      animation:'fb-bar 2s ease-in-out infinite',
+    }}/>
+
+    <style>{`
+      @keyframes fb-pulse  { 0%,100%{transform:scale(1);opacity:.7} 50%{transform:scale(1.18);opacity:1} }
+      @keyframes fb-float  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+      @keyframes fb-bar    { 0%{opacity:.3} 50%{opacity:1} 100%{opacity:.3} }
+      @keyframes fb-sp1    { 0%,100%{opacity:0;transform:translate(-18px,-14px) scale(.6)} 40%{opacity:1;transform:translate(-22px,-20px) scale(1)} }
+      @keyframes fb-sp2    { 0%,100%{opacity:0;transform:translate(22px,-22px) scale(.6)} 55%{opacity:1;transform:translate(26px,-28px) scale(1)} }
+      @keyframes fb-sp3    { 0%,100%{opacity:0;transform:translate(40px,-8px) scale(.6)}  30%{opacity:1;transform:translate(46px,-12px) scale(1)} }
+      @keyframes fb-sp4    { 0%,100%{opacity:0;transform:translate(-30px,8px) scale(.6)}  45%{opacity:1;transform:translate(-36px,12px) scale(1)} }
+    `}</style>
+  </div>
+)
+
 // Error Boundary for catching lazy loading and render errors
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -41,41 +138,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '50vh',
-          padding: '2rem',
-          textAlign: 'center',
-          background: 'var(--color-bg-primary)',
-        }}>
-          <h2 style={{ marginBottom: '1rem', color: 'var(--color-text-primary)' }}>
-            Something went wrong
-          </h2>
-          <p style={{ marginBottom: '1.5rem', color: 'var(--color-text-muted)' }}>
-            Please refresh the page to try again.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '0.75rem 1.5rem',
-              background: 'var(--color-gold)',
-              border: 'none',
-              borderRadius: '9999px',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Refresh Page
-          </button>
-        </div>
-      )
+      return this.props.fallback || <AnimatedFallback />
     }
-
     return this.props.children
   }
 }
@@ -122,11 +186,50 @@ const ScrollToTop = () => {
   return null
 }
 
+// Footer that hides itself briefly when the route changes, so the user
+// sees the incoming page's loader rather than a stale footer.
+const NavigationAwareFooter = () => {
+  const { pathname } = useLocation()
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    // Hide immediately on route change, reveal after a short delay
+    // so the page's own Suspense fallback has time to render first.
+    setVisible(false)
+    const t = setTimeout(() => setVisible(true), 400)
+    return () => clearTimeout(t)
+  }, [pathname])
+
+  return (
+    <div
+      style={{
+        opacity:       visible ? 1 : 0,
+        visibility:    visible ? 'visible' : 'hidden',
+        transition:    'opacity 0.35s ease',
+        pointerEvents: visible ? undefined : 'none',
+      }}
+    >
+      <Footer />
+    </div>
+  )
+}
+
 // Section loading placeholder
 const SectionLoader = () => (
-  <div className="section-loader">
-    <div className="loader-spinner"></div>
-    <span>Loading...</span>
+  <div style={{
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    minHeight: '100vh', gap: '1.2rem',
+    background: '#050508',
+  }}>
+    {/* Spinning gold ring */}
+    <div style={{
+      width: 48, height: 48, borderRadius: '50%',
+      border: '2px solid rgba(212,175,55,0.15)',
+      borderTopColor: '#D4AF37',
+      animation: 'spin 0.85s linear infinite',
+    }}/>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
   </div>
 )
 
@@ -247,7 +350,7 @@ function App() {
             </Routes>
           </Suspense>
         </ErrorBoundary>
-        <Footer />
+        <NavigationAwareFooter />
       </div>
     </div>
   )

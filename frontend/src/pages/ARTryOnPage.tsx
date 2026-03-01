@@ -1,676 +1,820 @@
+/**
+ * ARTryOnPage — Complete rewrite
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  MIRROR APPROACH  (the correct way — used by Snap / TikTok filters) │
+ * │                                                                     │
+ * │  canvas CSS:  transform: scaleX(-1)                                 │
+ * │                                                                     │
+ * │  • MediaPipe receives the RAW (unflipped) video frame               │
+ * │  • Landmarks come back in raw image coordinates  lm.x ∈ [0,1]      │
+ * │  • We draw raw video to canvas  (NO ctx.scale(-1,1) flip)           │
+ * │  • Three.js positions use raw  lm.x * W  (NO  1-lm.x  flip)        │
+ * │  • CSS scaleX(-1) on the canvas mirrors video + glasses together    │
+ * │    → temples always appear on the correct face side  ✓              │
+ * │                                                                     │
+ * │  GLB model: rotation.y = Math.PI only (faces camera). Zero geometry │
+ * │  flipping required.                                                 │
+ * └─────────────────────────────────────────────────────────────────────┘
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FaceMesh } from '@mediapipe/face_mesh'
-import './ARTryOnPage.scss'
 
-// AR config per product — just a scale tweak if a particular model needs it
-const defaultArConfig = {
-  scale: 1.0,       // Overall size multiplier (1.0 = auto from PD)
-  offsetY: 0.0,     // Vertical pixel offset (positive = down)
+// ─── Product registry ────────────────────────────────────────────────────────
+const PRODUCTS: Record<string, { name: string; modelPath: string; offsetY: number; scale: number }> = {
+  'glasses1':    { name: 'Aviator Elite',     modelPath: '/models/glasses1.glb',    offsetY: 0, scale: 1 },
+  'glasses3':    { name: 'Pilot Classic',     modelPath: '/models/glasses3.glb',    offsetY: 0, scale: 1 },
+  'glasses4':    { name: 'Executive',         modelPath: '/models/glasses4.glb',    offsetY: 0, scale: 1 },
+  'glasses5':    { name: 'Heritage Round',    modelPath: '/models/glasses5.glb',    offsetY: 0, scale: 1 },
+  'glasses6':    { name: 'Sport Precision',   modelPath: '/models/glasses6.glb',    offsetY: 0, scale: 1 },
+  'glasses-1-':  { name: 'Signature One',     modelPath: '/models/glasses-1-.glb',  offsetY: 0, scale: 1 },
+  'glasses-5b':  { name: 'Active Sport',      modelPath: '/models/glasses-5b.glb',  offsetY: 0, scale: 1 },
+  'glasses-5c':  { name: 'Runner Pro',        modelPath: '/models/glasses-5c.glb',  offsetY: 0, scale: 1 },
+  'glasses-6':   { name: 'Shield Sport',      modelPath: '/models/glasses-6.glb',   offsetY: 0, scale: 1 },
+  'glasses-7':   { name: 'Square Frame',      modelPath: '/models/glasses-7.glb',   offsetY: 0, scale: 1 },
+  'glasses-7b':  { name: 'Luxury Wayfarer',   modelPath: '/models/glasses-7b.glb',  offsetY: 0, scale: 1 },
+  'glasses-7c':  { name: 'Designer Cat Eye',  modelPath: '/models/glasses-7c.glb',  offsetY: 0, scale: 1 },
+  'glasses-8b':  { name: 'Metropolitan',      modelPath: '/models/glasses-8b.glb',  offsetY: 0, scale: 1 },
+  'glasses-8c':  { name: 'Artisan Classic',   modelPath: '/models/glasses-8c.glb',  offsetY: 0, scale: 1 },
+  'glasses-9b':  { name: 'Urban Shield',      modelPath: '/models/glasses-9b.glb',  offsetY: 0, scale: 1 },
+  'glasses-9c':  { name: 'Vintage Square',    modelPath: '/models/glasses-9c.glb',  offsetY: 0, scale: 1 },
+  'glasses-10':  { name: 'Oval Luxe',         modelPath: '/models/glasses-10.glb',  offsetY: 0, scale: 1 },
+  'glasses-11b': { name: 'Edge Series B',     modelPath: '/models/glasses-11b.glb', offsetY: 0, scale: 1 },
+  'glasses-11c': { name: 'Bold Series C',     modelPath: '/models/glasses-11c.glb', offsetY: 0, scale: 1 },
+  'glasses-12':  { name: 'Heritage Gold',     modelPath: '/models/glasses-12.glb',  offsetY: 0, scale: 1 },
+  'sunglass':    { name: 'Classic Sunglass',  modelPath: '/models/sunglass.glb',    offsetY: 0, scale: 1 },
+  'sunglasses':  { name: 'Premium Sunglasses',modelPath: '/models/sunglasses.glb',  offsetY: 0, scale: 1 },
 }
 
-const productData: Record<string, {
-  id: string
-  name: string
-  modelPath: string
-  arConfig: typeof defaultArConfig
-}> = {
-  'glasses1':    { id: 'glasses1',    name: 'Aviator Elite',       modelPath: '/models/glasses1.glb',    arConfig: { ...defaultArConfig } },
-  'glasses3':    { id: 'glasses3',    name: 'Pilot Classic',       modelPath: '/models/glasses3.glb',    arConfig: { ...defaultArConfig } },
-  'glasses4':    { id: 'glasses4',    name: 'Executive',           modelPath: '/models/glasses4.glb',    arConfig: { ...defaultArConfig } },
-  'glasses5':    { id: 'glasses5',    name: 'Heritage Round',      modelPath: '/models/glasses5.glb',    arConfig: { ...defaultArConfig } },
-  'glasses6':    { id: 'glasses6',    name: 'Sport Precision',     modelPath: '/models/glasses6.glb',    arConfig: { ...defaultArConfig } },
-  'glasses-1-':  { id: 'glasses-1-',  name: 'Signature One',       modelPath: '/models/glasses-1-.glb', arConfig: { ...defaultArConfig } },
-  'glasses-5b':  { id: 'glasses-5b',  name: 'Active Sport',        modelPath: '/models/glasses-5b.glb', arConfig: { ...defaultArConfig } },
-  'glasses-5c':  { id: 'glasses-5c',  name: 'Runner Pro',          modelPath: '/models/glasses-5c.glb', arConfig: { ...defaultArConfig } },
-  'glasses-6':   { id: 'glasses-6',   name: 'Shield Sport',        modelPath: '/models/glasses-6.glb',  arConfig: { ...defaultArConfig } },
-  'glasses-7':   { id: 'glasses-7',   name: 'Square Frame',        modelPath: '/models/glasses-7.glb',  arConfig: { ...defaultArConfig } },
-  'glasses-7b':  { id: 'glasses-7b',  name: 'Luxury Wayfarer',     modelPath: '/models/glasses-7b.glb', arConfig: { ...defaultArConfig } },
-  'glasses-7c':  { id: 'glasses-7c',  name: 'Designer Cat Eye',    modelPath: '/models/glasses-7c.glb', arConfig: { ...defaultArConfig } },
-  'glasses-8b':  { id: 'glasses-8b',  name: 'Metropolitan',        modelPath: '/models/glasses-8b.glb', arConfig: { ...defaultArConfig } },
-  'glasses-8c':  { id: 'glasses-8c',  name: 'Artisan Classic',     modelPath: '/models/glasses-8c.glb', arConfig: { ...defaultArConfig } },
-  'glasses-9b':  { id: 'glasses-9b',  name: 'Urban Shield',        modelPath: '/models/glasses-9b.glb', arConfig: { ...defaultArConfig } },
-  'glasses-9c':  { id: 'glasses-9c',  name: 'Vintage Square',      modelPath: '/models/glasses-9c.glb', arConfig: { ...defaultArConfig } },
-  'glasses-10':  { id: 'glasses-10',  name: 'Oval Luxe',           modelPath: '/models/glasses-10.glb', arConfig: { ...defaultArConfig } },
-  'glasses-11b': { id: 'glasses-11b', name: 'Edge Series B',       modelPath: '/models/glasses-11b.glb',arConfig: { ...defaultArConfig } },
-  'glasses-11c': { id: 'glasses-11c', name: 'Bold Series C',       modelPath: '/models/glasses-11c.glb',arConfig: { ...defaultArConfig } },
-  'glasses-12':  { id: 'glasses-12',  name: 'Heritage Gold',       modelPath: '/models/glasses-12.glb', arConfig: { ...defaultArConfig } },
-  'sunglass':    { id: 'sunglass',    name: 'Classic Sunglass',    modelPath: '/models/sunglass.glb',   arConfig: { ...defaultArConfig } },
-  'sunglasses':  { id: 'sunglasses',  name: 'Premium Sunglasses',  modelPath: '/models/sunglasses.glb', arConfig: { ...defaultArConfig } },
-}
+const SCAN_FRAMES = 45   // frames to collect before locking scale
 
-const ARTryOnPage = () => {
+// ─── Component ───────────────────────────────────────────────────────────────
+export default function ARTryOnPage() {
   const { productId } = useParams<{ productId: string }>()
-  const navigate = useNavigate()
-  
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const navigate      = useNavigate()
+  const product       = productId ? PRODUCTS[productId] : null
+
+  // DOM
+  const videoRef     = useRef<HTMLVideoElement>(null)
+  const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const faceMeshRef = useRef<FaceMesh | null>(null)
-  const sceneRef = useRef<THREE.Scene | null>(null)
-  const cameraThreeRef = useRef<THREE.OrthographicCamera | null>(null)
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
-  const glassesRef = useRef<THREE.Group | null>(null)
-  const isInitializing = useRef(false)
-  const modelSizeRef = useRef({ width: 1, height: 1, depth: 1 })
-  
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isARActive, setIsARActive] = useState(false)
-  const [isCaptured, setIsCaptured] = useState(false)
-  const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [faceDetected, setFaceDetected] = useState(false)
 
-  const product = productId ? productData[productId] : null
+  // Three.js
+  const sceneRef     = useRef<THREE.Scene | null>(null)
+  const cameraRef    = useRef<THREE.OrthographicCamera | null>(null)
+  const rendererRef  = useRef<THREE.WebGLRenderer | null>(null)
+  const offscreenRef = useRef<HTMLCanvasElement | null>(null)
+  const glassesRef   = useRef<THREE.Group | null>(null)
+  const occluderRef  = useRef<THREE.Mesh | null>(null)   // depth-only face oval — occludes temple arms
+  const modelWRef    = useRef(1)  // native model width in model units
 
-  const initMediapipeAR = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !product || isInitializing.current) return
-    isInitializing.current = true
+  // MediaPipe / loop
+  const faceMeshRef  = useRef<FaceMesh | null>(null)
+  const initRef      = useRef(false)
+  const busyRef      = useRef(false)
 
+  // Calibration scan
+  const scanBufRef  = useRef<{ ts: number; oe: number }[]>([])
+  const calibRef    = useRef<number | null>(null)   // just a "ready" flag after scan completes
+  const scaleRatioRef = useRef<number>(1)           // product.scale / modelW — pixel-span → scene units
+  const phaseRef    = useRef<'scanning' | 'done'>('scanning')
+
+  // UI
+  const [status,    setStatus]    = useState<'loading' | 'scanning' | 'running' | 'error'>('loading')
+  const [errMsg,    setErrMsg]    = useState<string | null>(null)
+  const [denied,    setDenied]    = useState(false)
+  const [scanPct,   setScanPct]   = useState(0)
+  const [faceLive,  setFaceLive]  = useState(false)
+  const [captured,  setCaptured]  = useState<string | null>(null)
+  // User-controlled size multiplier (0.7 – 1.5, default 1.0)
+  const [userScale, setUserScale] = useState(1.0)
+  const userScaleRef = useRef(1.0)
+  useEffect(() => { userScaleRef.current = userScale }, [userScale])
+
+  // ─── Cleanup ──────────────────────────────────────────────────────────────
+  const stopAR = useCallback(() => {
+    if (videoRef.current?.srcObject) {
+      ;(videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop())
+      videoRef.current.srcObject = null
+    }
+    faceMeshRef.current?.close()
+    faceMeshRef.current = null
+    rendererRef.current?.dispose()
+    rendererRef.current = null
+    sceneRef.current?.clear()
+    sceneRef.current = null
+    glassesRef.current    = null
+    occluderRef.current   = null
+    initRef.current       = false
+    busyRef.current       = false
+    scanBufRef.current    = []
+    calibRef.current      = null
+    scaleRatioRef.current = 1
+    phaseRef.current      = 'scanning'
+  }, [])
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
+  const initAR = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || !product || initRef.current) return
+    initRef.current = true
+
+    const video  = videoRef.current
+    const canvas = canvasRef.current
+    const ctx    = canvas.getContext('2d', { willReadFrequently: true })!
+
+    // ── Camera ────────────────────────────────────────────────────────────
     try {
-      setIsLoading(true)
-      setErrorMessage(null)
+      if (video.srcObject) {
+        ;(video.srcObject as MediaStream).getTracks().forEach(t => t.stop())
+        video.srcObject = null
+      }
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw Object.assign(new Error('Camera API requires HTTPS or localhost'), { name: 'NotSupported' })
 
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      const canvasCtx = canvas.getContext('2d', { willReadFrequently: true })!
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      })
+      if (!containerRef.current) { stream.getTracks().forEach(t => t.stop()); return }
 
-      // Initialize camera stream directly
-      try {
-        console.log('Requesting camera access...')
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        })
-        
-        console.log('Camera access granted')
-        
-        // Attach stream to video element
-        video.srcObject = stream
-        
-        // Wait for video to load metadata
-        await new Promise<void>((resolve) => {
-          video.onloadedmetadata = () => {
-            console.log('Video metadata loaded:', video.videoWidth, 'x', video.videoHeight)
-            resolve()
-          }
-        })
-        
-        await video.play()
-        console.log('Video playing')
-        
-        setHasPermission(true)
-      } catch (camError: any) {
-        console.error('Camera error:', camError)
-        isInitializing.current = false
-        setIsLoading(false)
-        if (camError.name === 'NotAllowedError') {
-          setHasPermission(false)
-          setErrorMessage('Camera access denied. Please allow camera access.')
-        } else if (camError.name === 'NotFoundError') {
-          setErrorMessage('No camera found.')
+      video.srcObject = stream
+      await new Promise<void>(res => { video.onloadedmetadata = () => res() })
+      await video.play().catch(e => console.warn('[AR] play():', e))
+    } catch (e: any) {
+      console.error('[AR] camera:', e)
+      initRef.current = false
+      if (e.name === 'NotAllowedError') setDenied(true)
+      setErrMsg(
+        e.name === 'NotAllowedError' ? 'Camera access denied. Tap "Try Again" and allow camera.' :
+        e.name === 'NotFoundError'   ? 'No camera found on this device.' :
+        `Camera error: ${e.message}`
+      )
+      setStatus('error')
+      return
+    }
+
+    // ── Size canvas to the actual camera resolution ───────────────────────
+    canvas.width  = video.videoWidth  || 1280
+    canvas.height = video.videoHeight || 720
+    const W = canvas.width, H = canvas.height
+    const halfW = W / 2, halfH = H / 2
+
+    // ── Three.js orthographic scene  (1 unit = 1 pixel) ──────────────────
+    const scene = new THREE.Scene()
+    sceneRef.current = scene
+
+    const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 1, 3000)
+    cam.position.set(0, 0, 500)
+    cam.lookAt(0, 0, 0)
+    cameraRef.current = cam
+
+    const offscreen = document.createElement('canvas')
+    offscreen.width = W; offscreen.height = H
+    offscreenRef.current = offscreen
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: offscreen, alpha: true, antialias: true,
+      powerPreference: 'high-performance', preserveDrawingBuffer: true,
+    })
+    renderer.setSize(W, H)
+    renderer.setPixelRatio(1)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.setClearColor(0x000000, 0)
+    rendererRef.current = renderer
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 1.0))
+    const key  = new THREE.DirectionalLight(0xffffff, 0.7)
+    key.position.set(1, 2, 3); scene.add(key)
+    const fill = new THREE.DirectionalLight(0xffffff, 0.3)
+    fill.position.set(-1, 0, -2); scene.add(fill)
+
+    // ── Face depth occluder (unit circle, scaled per-frame to match face oval) ────
+    // This invisible mesh writes to the depth buffer at z=-20 so the temple arms
+    // of the glasses that fall "behind" the face are correctly hidden — exactly
+    // how Snapchat / Fittingbox implement glasses temple occlusion.
+    const occShape = new THREE.Shape()
+    occShape.absellipse(0, 0, 1, 1, 0, Math.PI * 2, false, 0)
+    const occGeo = new THREE.ShapeGeometry(occShape, 40)
+    const occMat = new THREE.MeshBasicMaterial({
+      colorWrite: false,   // invisible — writes ONLY to depth buffer
+      depthWrite: true,
+      side: THREE.FrontSide,
+    })
+    const occluder = new THREE.Mesh(occGeo, occMat)
+    occluder.renderOrder = 0      // render before glasses so depth is written first
+    occluder.visible = false      // hidden until first face detection
+    scene.add(occluder)
+    occluderRef.current = occluder
+
+    // ── Load GLB glasses model ────────────────────────────────────────────
+    try {
+      const gltf = await new Promise<any>((res, rej) =>
+        new GLTFLoader().load(product.modelPath, res, undefined, rej)
+      )
+      const model  = gltf.scene
+      const box    = new THREE.Box3().setFromObject(model)
+      const size   = box.getSize(new THREE.Vector3())
+      const center = box.getCenter(new THREE.Vector3())
+
+      // Centre model so it pivots around nose bridge when we translate
+      model.position.set(-center.x, -center.y, -center.z)
+      modelWRef.current = size.x
+      console.log('[AR] model w:', size.x.toFixed(4), 'h:', size.y.toFixed(4), 'd:', size.z.toFixed(4))
+
+      // Face the camera (+Z direction).  Most glasses GLBs face -Z by default.
+      model.rotation.y = Math.PI
+
+      // Material pass
+      model.traverse((child: any) => {
+        if (!child.isMesh) return
+        child.frustumCulled = false
+        if (!child.material) return
+        const mat = child.material.clone()
+        child.material = mat
+        mat.needsUpdate = true
+        mat.side = THREE.DoubleSide
+
+        const isLens =
+          mat.transparent ||
+          (mat.opacity !== undefined && mat.opacity < 0.95) ||
+          (mat.transmission !== undefined && mat.transmission > 0.1)
+
+        if (isLens) {
+          mat.transparent = true
+          if (!mat.opacity || mat.opacity >= 1) mat.opacity = 0.45
+          mat.depthWrite = false
         } else {
-          setErrorMessage('Cannot access camera: ' + camError.message)
+          if (mat.metalness !== undefined) mat.metalness = Math.min(mat.metalness, 0.65)
+          if (mat.roughness !== undefined) mat.roughness = Math.max(mat.roughness, 0.20)
+        }
+      })
+
+      const group = new THREE.Group()
+      group.add(model)
+      group.renderOrder = 1   // render AFTER the depth-only face occluder
+      group.visible = false
+      scene.add(group)
+      glassesRef.current = group
+
+      // Ensure every mesh inside the group also uses renderOrder=1 and tests depth
+      group.traverse((child: any) => {
+        if (child.isMesh) {
+          child.renderOrder = 1
+          if (child.material) child.material.depthTest = true
+        }
+      })
+    } catch (e: any) {
+      console.error('[AR] model load:', e)
+      setErrMsg('Failed to load glasses model.')
+      setStatus('error')
+      initRef.current = false
+      return
+    }
+
+    // ── MediaPipe Face Mesh ───────────────────────────────────────────────
+    const fm = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
+    })
+    fm.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,          // adds iris landmarks 468-477
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.5,
+    })
+    faceMeshRef.current = fm
+
+    // ── Per-frame result handler ──────────────────────────────────────────
+    fm.onResults(results => {
+      busyRef.current = false
+
+      // Draw RAW (not flipped) video straight to the canvas.
+      // The CSS `transform: scaleX(-1)` on the canvas element provides the
+      // selfie-mirror flip for the viewer — no manual ctx flip needed.
+      ctx.clearRect(0, 0, W, H)
+      ctx.drawImage(results.image, 0, 0, W, H)
+
+      const lms = results.multiFaceLandmarks?.[0]
+      if (!lms) {
+        setFaceLive(false)
+        if (glassesRef.current) glassesRef.current.visible = false
+        if (occluderRef.current) occluderRef.current.visible = false
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current)
+          ctx.drawImage(offscreenRef.current!, 0, 0)
         }
         return
       }
-      
-      // Set canvas size to match the actual video feed resolution.
-      // This guarantees a 1:1 mapping between MediaPipe normalised landmarks
-      // and the pixel grid we draw on — no stretching artefacts.
-      canvas.width  = video.videoWidth  || 1280
-      canvas.height = video.videoHeight || 720
+      setFaceLive(true)
 
-      console.log('Canvas size:', canvas.width, 'x', canvas.height)
+      // ── Landmark extraction — raw pixel coords (NO 1-lm.x flip) ───────
+      // lm.x and lm.y are in [0,1], normalised by image W and H.
+      // We multiply directly — no mirror inversion required because the
+      // CSS transform on the canvas handles the visual mirror.
+      const px = (l: { x: number }) => l.x * W
+      const py = (l: { y: number }) => l.y * H
 
-      // ── Three.js setup — ORTHOGRAPHIC camera in screen-pixel space ──────────
-      // This maps 1 Three.js unit = 1 canvas pixel. No FOV calibration needed.
-      // Origin (0,0) = centre of canvas.  +x right, +y up.
-      const halfW = canvas.width / 2
-      const halfH = canvas.height / 2
-      const scene = new THREE.Scene()
-      sceneRef.current = scene
+      // Iris centres (refineLandmarks=true) — only X needed; Y anchor comes from nose/glabella
+      const liX = px(lms[468] ?? lms[133])
+      const riX = px(lms[473] ?? lms[362])
 
-      // near/far must accommodate the model after scaling.  A glasses model
-      // in metres (width≈0.14) scaled to ~120 px becomes ~900× scale; its depth
-      // expands to dozens of units.  Placing the camera at z=500 keeps the
-      // entire model in front of the near plane no matter how large the scale.
-      const orthoCamera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 1, 2000)
-      orthoCamera.position.set(0, 0, 500)
-      orthoCamera.lookAt(0, 0, 0)
-      cameraThreeRef.current = orthoCamera
+      // Outer eye corners (roll + span)
+      const loX = px(lms[33]),  loY = py(lms[33])
+      const roX = px(lms[263]), roY = py(lms[263])
 
-      const threeCanvas = document.createElement('canvas')
-      threeCanvas.width = canvas.width
-      threeCanvas.height = canvas.height
+      // Inner eye corners (roll stability)
+      const liInX = px(lms[133]), liInY = py(lms[133])
+      const riInX = px(lms[362]), riInY = py(lms[362])
 
-      const renderer = new THREE.WebGLRenderer({
-        canvas: threeCanvas,
-        alpha: true,
-        antialias: true,
-        powerPreference: 'high-performance',
-        preserveDrawingBuffer: true
-      })
-      renderer.setSize(canvas.width, canvas.height)
-      renderer.setPixelRatio(1)          // 1:1 pixel mapping for orthographic
-      renderer.outputColorSpace = THREE.SRGBColorSpace
-      renderer.setClearColor(0x000000, 0)
-      rendererRef.current = renderer
+      // Nose bridge (168) and glabella (6) for Y anchor
+      const nbY = py(lms[168])
+      const gbY = py(lms[6])
 
-      // Lighting — balanced so glasses look natural without washing out lenses
-      scene.add(new THREE.AmbientLight(0xffffff, 0.9))
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6)
-      dirLight.position.set(0, 1, 2)
-      scene.add(dirLight)
-      // Gentle fill light from behind to soften shadows
-      const fillLight = new THREE.DirectionalLight(0xffffff, 0.25)
-      fillLight.position.set(0, 0, -2)
-      scene.add(fillLight)
+      // Temple landmarks (127 left, 356 right) — true glasses width span
+      const ltX = px(lms[127]), ltY = py(lms[127])
+      const rtX = px(lms[356]), rtY = py(lms[356])
 
-      // ── Load glasses model ──────────────────────────────────────────────────
-      const loader = new GLTFLoader()
-      const gltf = await new Promise<any>((resolve, reject) => {
-        loader.load(product.modelPath, resolve, undefined, reject)
-      })
+      // Face oval landmarks for occluder
+      // 234 = left cheek/ear edge,  454 = right cheek/ear edge
+      // 10  = forehead top,         152 = chin bottom
+      const fEarLX = px(lms[234]), fEarLY = py(lms[234])
+      const fEarRX = px(lms[454]), fEarRY = py(lms[454])
+      const fTopY  = py(lms[10])
+      const fBotY  = py(lms[152])
 
-      const glassesModel = gltf.scene
-      const box = new THREE.Box3().setFromObject(glassesModel)
-      const size = box.getSize(new THREE.Vector3())
-      const center = new THREE.Vector3()
-      box.getCenter(center)
+      // ── Face measurements ───────────────────────────────────────────────
+      const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
+      const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
 
-      // Store model's native width (used to compute pixel-based scale factor)
-      modelSizeRef.current = { width: size.x, height: size.y, depth: size.z }
-      console.log('[AR] Model bounding box — width:', size.x.toFixed(4),
-        'height:', size.y.toFixed(4), 'depth:', size.z.toFixed(4))
+      // ── Calibration scan ────────────────────────────────────────────────
+      if (phaseRef.current === 'scanning') {
+        scanBufRef.current.push({ ts: templeSpan, oe: outerEyeSpan })
+        const pct = Math.round(Math.min(scanBufRef.current.length / SCAN_FRAMES, 1) * 100)
+        setScanPct(pct)
 
-      // Centre model at local (0,0,0) — the geometric centre of the frame
-      // aligns with the nose bridge landmark when positioned in the scene.
-      glassesModel.position.set(-center.x, -center.y, -center.z)
-
-      glassesModel.traverse((child: any) => {
-        if (child.isMesh) {
-          child.frustumCulled = false
-          if (child.material) {
-            // Clone material so we don't mutate shared instances
-            child.material = child.material.clone()
-            child.material.needsUpdate = true
-            child.material.side = THREE.DoubleSide
-
-            // Detect lens meshes: they're typically transparent, have high
-            // transmission, or very low opacity. Preserve their look.
-            const mat = child.material
-            const isLens = mat.transparent ||
-                           (mat.opacity !== undefined && mat.opacity < 0.95) ||
-                           (mat.transmission !== undefined && mat.transmission > 0.1)
-
-            if (isLens) {
-              // Preserve the original lens tint / transparency.
-              // Ensure lenses are actually transparent so they don't go opaque white.
-              mat.transparent = true
-              if (mat.opacity === undefined || mat.opacity >= 1) mat.opacity = 0.4
-              mat.depthWrite = false
-              // Keep original metalness/roughness for glass look
-            } else {
-              // Frame / temple material — gentle cap so it doesn't blow out
-              if (mat.metalness !== undefined) {
-                mat.metalness = Math.min(mat.metalness, 0.6)
-                mat.roughness = Math.max(mat.roughness, 0.25)
-              }
-            }
-          }
-        }
-      })
-
-      // ── Orient towards camera & mirror for selfie view ────────────────────────
-      // These models are built facing -Z (backwards). The camera is at +Z.
-      // 1. Rotate 180° around Y so the front of the glasses faces the camera.
-      glassesModel.rotation.y = Math.PI
-
-      // 2. The video feed is drawn mirrored (selfie mode). We must also mirror
-      // the geometry on the X-axis so it matches the left↔right swap.
-      // We flip vertex positions + normals and reverse winding to keep lighting
-      // correct (avoids the white-lens artefact caused by negative scale).
-      glassesModel.traverse((child: any) => {
-        if (child.isMesh && child.geometry) {
-          // Flip geometry on X-axis to mirror for selfie view.
-          // This avoids negative scale which inverts triangle winding / normals.
-          child.geometry = child.geometry.clone()
-          const pos = child.geometry.attributes.position
-          if (pos) {
-            for (let i = 0; i < pos.count; i++) {
-              pos.setX(i, -pos.getX(i))
-            }
-            pos.needsUpdate = true
-          }
-          // Flip normals X component to keep lighting correct
-          const norm = child.geometry.attributes.normal
-          if (norm) {
-            for (let i = 0; i < norm.count; i++) {
-              norm.setX(i, -norm.getX(i))
-            }
-            norm.needsUpdate = true
-          }
-          // Reverse face winding so front faces stay front after X-flip
-          if (child.geometry.index) {
-            const idx = child.geometry.index.array
-            for (let i = 0; i < idx.length; i += 3) {
-              const tmp = idx[i]
-              idx[i] = idx[i + 2]
-              idx[i + 2] = tmp
-            }
-            child.geometry.index.needsUpdate = true
-          }
-          child.geometry.computeBoundingBox()
-          child.geometry.computeBoundingSphere()
-        }
-      })
-
-      const glassesGroup = new THREE.Group()
-      glassesGroup.add(glassesModel)
-      glassesGroup.visible = false
-      scene.add(glassesGroup)
-      glassesRef.current = glassesGroup
-
-      // ── MediaPipe Face Mesh ──────────────────────────────────────────────────
-      console.log('Initializing MediaPipe Face Mesh...')
-      const faceMesh = new FaceMesh({
-        locateFile: (file) => {
-          const url = `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-          console.log('Loading MediaPipe file:', url)
-          return url
-        }
-      })
-      faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true,          // enables iris landmarks 468-477
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      })
-
-      let isProcessing = false
-
-      // ── Per-frame callback ──────────────────────────────────────────────────
-      faceMesh.onResults((results) => {
-        // Draw mirrored video (selfie view)
-        canvasCtx.save()
-        canvasCtx.clearRect(0, 0, canvas.width, canvas.height)
-        canvasCtx.translate(canvas.width, 0)
-        canvasCtx.scale(-1, 1)
-        canvasCtx.drawImage(results.image, 0, 0, canvas.width, canvas.height)
-        canvasCtx.restore()
-
-        if (!results.multiFaceLandmarks?.[0] || !glassesRef.current) {
-          if (glassesRef.current) glassesRef.current.visible = false
-          setFaceDetected(false)
-          isProcessing = false
-          return
-        }
-        setFaceDetected(true)
-        const lm = results.multiFaceLandmarks[0]
-
-        // ── Key landmarks (all in MediaPipe normalised 0-1 coords) ───────────
-        // Iris centres (from refineLandmarks):  468 left, 473 right
-        // Eye outer corners: 33 left, 263 right
-        // Nose bridge: 168
-        const noseBridge  = lm[168]
-        const leftPupil   = lm[468] ?? lm[33]    // fallback
-        const rightPupil  = lm[473] ?? lm[263]
-        const leftOuter   = lm[33]
-        const rightOuter  = lm[263]
-
-        // ── Convert to mirrored pixel coords ─────────────────────────────────
-        // Mirror: px = (1 - norm.x) * W      py = norm.y * H
-        const W = canvas.width
-        const H = canvas.height
-        const nb  = { x: (1 - noseBridge.x)  * W, y: noseBridge.y  * H }
-        const lp  = { x: (1 - leftPupil.x)   * W, y: leftPupil.y   * H }
-        const rp  = { x: (1 - rightPupil.x)  * W, y: rightPupil.y  * H }
-        const lo  = { x: (1 - leftOuter.x)   * W, y: leftOuter.y   * H }
-        const ro  = { x: (1 - rightOuter.x)  * W, y: rightOuter.y  * H }
-
-        // ── Pupillary Distance in pixels (Euclidean) ─────────────────────────
-        const PD = Math.hypot(rp.x - lp.x, rp.y - lp.y)
-
-        // ── Target glasses width in pixels ───────────────────────────────────
-        // Real glasses are roughly 2.1 × PD.  Fine-tune per product with arConfig.scale.
-        const glassesWidthPx = PD * 2.1 * product.arConfig.scale
-
-        // Scale factor: how many pixels per model unit
-        const scaleFactor = glassesWidthPx / modelSizeRef.current.width
-
-        // Debug: log once on first detection
-        if (!glassesRef.current!.visible) {
-          console.log('[AR] PD px:', PD.toFixed(1),
-            '| target width px:', glassesWidthPx.toFixed(1),
-            '| model native width:', modelSizeRef.current.width.toFixed(4),
-            '| scaleFactor:', scaleFactor.toFixed(2))
+        if (scanBufRef.current.length >= SCAN_FRAMES) {
+          const n   = scanBufRef.current.length
+          const avg = (key: 'ts' | 'oe') => scanBufRef.current.reduce((s, f) => s + f[key], 0) / n
+          // Store the pixel-span → scene-unit conversion ratio.
+          // scaleRatioRef encodes:   (product.scale / modelNativeWidth)
+          // Every frame: sf = scaleRatioRef * liveSpan   → glasses resize with face automatically.
+          const blendedAvg = avg('ts') * 0.7 + avg('oe') * 0.3
+          scaleRatioRef.current = (product.scale / modelWRef.current)
+          calibRef.current = scaleRatioRef.current * blendedAvg  // initial scale (for first frame)
+          console.log('[AR] calibrated ratio:', scaleRatioRef.current.toFixed(4),
+            ' initial scale:', calibRef.current.toFixed(3),
+            ' temple px:', avg('ts').toFixed(1))
+          phaseRef.current = 'done'
+          setStatus('running')
         }
 
-        // ── Position in Three.js orthographic coords ─────────────────────────
-        // Ortho camera: centre of canvas = (0,0),  +x right,  +y UP
-        const posX = nb.x - halfW
-        const posY = -(nb.y - halfH) + product.arConfig.offsetY  // flip y (screen y → 3D y)
-
-        // ── Head roll from eye outer corners ─────────────────────────────────
-        const roll = -Math.atan2(ro.y - lo.y, ro.x - lo.x)
-
-        // ── Apply with lerp smoothing (0.35 = smooth, 0.6 = responsive) ─────
-        const LERP = 0.4
-        const tPos = new THREE.Vector3(posX, posY, 0)
-        const tScale = new THREE.Vector3(scaleFactor, scaleFactor, scaleFactor)
-
-        if (!glassesRef.current.visible) {
-          glassesRef.current.visible = true
-          glassesRef.current.position.copy(tPos)
-          glassesRef.current.scale.copy(tScale)
-          glassesRef.current.rotation.z = roll
-        } else {
-          glassesRef.current.position.lerp(tPos, LERP)
-          glassesRef.current.scale.lerp(tScale, LERP)
-          glassesRef.current.rotation.z += (roll - glassesRef.current.rotation.z) * LERP
+        // Glasses still hidden during scan — just render video
+        if (occluderRef.current) occluderRef.current.visible = false
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current)
+          ctx.drawImage(offscreenRef.current!, 0, 0)
         }
-
-        // ── Render Three.js and composite over video ─────────────────────────
-        if (rendererRef.current && sceneRef.current && cameraThreeRef.current) {
-          rendererRef.current.render(sceneRef.current, cameraThreeRef.current)
-          canvasCtx.drawImage(threeCanvas, 0, 0)
-        }
-        isProcessing = false
-      })
-
-      faceMeshRef.current = faceMesh
-
-      // Manual frame processing loop (more reliable than Camera utility)
-      const processFrame = async () => {
-        if (!faceMeshRef.current || !video || video.readyState < 2) {
-          requestAnimationFrame(processFrame)
-          return
-        }
-
-        if (!isProcessing) {
-          isProcessing = true
-          try {
-            await faceMeshRef.current.send({ image: video })
-          } catch (error) {
-            console.error('MediaPipe processing error:', error)
-            isProcessing = false
-          }
-        }
-        
-        requestAnimationFrame(processFrame)
+        return
       }
 
-      // Wait for video to be ready
-      if (video.readyState >= 2) {
-        processFrame()
+      if (!calibRef.current) return   // safety guard
+
+      // ── Anchor position ─────────────────────────────────────────────────
+      // X = midpoint of iris centres (true optical axis)
+      // Y = average nose-bridge + glabella (stable, resists brow movement)
+      const anchorX = (liX + riX) / 2
+      const anchorY = (nbY + gbY) / 2
+
+      // ── Head roll ───────────────────────────────────────────────────────
+      // Average outer + inner corner vectors for jitter reduction
+      const rollA = Math.atan2(roY - loY, roX - loX)
+      const rollB = Math.atan2(riInY - liInY, riInX - liInX)
+      const roll  = (rollA + rollB) / 2
+
+      // ── Three.js orthographic coords ────────────────────────────────────
+      // Canvas centre = origin,  +x right,  +y UP
+      const posX = anchorX - halfW
+      const posY = -(anchorY - halfH) + product.offsetY
+
+      // ── Face depth occluder — update shape each frame ─────────────────
+      // The occluder is a depth-only ellipse at z=-20 (behind the glasses
+      // front frame at z≈0 but in front of the temple tips at z<-20).
+      // Any glasses geometry that falls behind this plane gets depth-clipped,
+      // making temples appear to pass behind the face / ears.
+      if (occluderRef.current) {
+        // Face centre in ortho coords
+        const faceCX = (fEarLX + fEarRX) / 2 - halfW
+        const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
+
+        // Half-widths of the face oval — add 15% padding so ears are fully covered
+        const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
+        const faceHH = Math.abs(fBotY - fTopY) * 0.56
+
+        occluderRef.current.position.set(faceCX, faceCY, -20)
+        occluderRef.current.scale.set(faceHW, faceHH, 1)
+        occluderRef.current.rotation.z = -roll
+        occluderRef.current.visible = true
+      }
+
+      // ── Apply to glasses group with LERP smoothing ───────────────────────
+      // KEY: scale is re-computed from LIVE landmark pixel span every frame.
+      // As the user moves closer  → templeSpan px grows   → sf grows   → glasses stay fitted.
+      // As the user moves farther → templeSpan px shrinks → sf shrinks → glasses stay fitted.
+      // The locked calibration phase only determines WHEN to show the glasses (stable tracking),
+      // not the ongoing scale — that always follows the face.
+      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
+      const LERP    = 0.35
+      const sf      = scaleRatioRef.current * liveSpan * userScaleRef.current
+      const glasses = glassesRef.current!
+      const tPos    = new THREE.Vector3(posX, posY, 0)
+      const tScale  = new THREE.Vector3(sf, sf, sf)
+
+      if (!glasses.visible) {
+        glasses.position.copy(tPos)
+        glasses.scale.copy(tScale)
+        glasses.rotation.z = -roll
+        glasses.visible    = true
       } else {
-        video.addEventListener('loadeddata', () => {
-          processFrame()
-        }, { once: true })
+        glasses.position.lerp(tPos, LERP)
+        glasses.scale.lerp(tScale, LERP)
+        glasses.rotation.z += (-roll - glasses.rotation.z) * LERP
       }
-      
-      console.log('MediaPipe Face Mesh initialized successfully')
 
-      setIsARActive(true)
-      setIsLoading(false)
-      isInitializing.current = false
-
-    } catch (error: any) {
-      console.error('AR initialization error:', error)
-      isInitializing.current = false
-      setIsLoading(false)
-      
-      // Provide more specific error messages
-      if (error.message?.includes('camera')) {
-        setErrorMessage('Camera initialization failed. Please refresh the page and try again.')
-      } else if (error.message?.includes('model') || error.message?.includes('load')) {
-        setErrorMessage('Failed to load AR models. Please check your internet connection.')
-      } else {
-        setErrorMessage(`Failed to initialize AR: ${error.message || 'Unknown error'}`)
+      // Composite Three.js render over raw video
+      if (rendererRef.current && sceneRef.current && cameraRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current)
+        ctx.drawImage(offscreenRef.current!, 0, 0)
       }
+    })
+
+    // ── Frame loop ────────────────────────────────────────────────────────
+    const tick = async () => {
+      if (!faceMeshRef.current) return
+      if (video.readyState >= 2 && !busyRef.current) {
+        busyRef.current = true
+        try { await faceMeshRef.current.send({ image: video }) }
+        catch (e) { console.error('[AR] tick:', e); busyRef.current = false }
+      }
+      requestAnimationFrame(tick)
     }
+    if (video.readyState >= 2) tick()
+    else video.addEventListener('loadeddata', tick, { once: true })
+
+    // Reset scan state and start scanning
+    scanBufRef.current    = []
+    calibRef.current      = null
+    scaleRatioRef.current = 1
+    phaseRef.current      = 'scanning'
+    setScanPct(0)
+    setStatus('scanning')
   }, [product])
 
-  const stopAR = useCallback(() => {
-    // Stop video stream
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream
-      stream.getTracks().forEach(track => track.stop())
-      videoRef.current.srcObject = null
-    }
-    
-    if (faceMeshRef.current) {
-      faceMeshRef.current.close()
-      faceMeshRef.current = null
-    }
-    
-    if (rendererRef.current) {
-      rendererRef.current.dispose()
-      rendererRef.current = null
-    }
-
-    if (sceneRef.current) {
-      sceneRef.current.clear()
-      sceneRef.current = null
-    }
-    
-    setIsARActive(false)
-    isInitializing.current = false
-  }, [])
-
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (product) {
-      initMediapipeAR()
-    }
+    if (product) initAR()
     return () => stopAR()
-  }, [product, initMediapipeAR, stopAR])
+  }, [product, initAR, stopAR])
 
-  const captureScreenshot = useCallback(() => {
-    if (canvasRef.current) {
-      const dataURL = canvasRef.current.toDataURL('image/png')
-      setCapturedImage(dataURL)
-      setIsCaptured(true)
-    }
+  // ─── Screenshot (applies the CSS mirror manually for the saved image) ─────
+  const capture = useCallback(() => {
+    const src = canvasRef.current
+    if (!src) return
+    const tmp  = document.createElement('canvas')
+    tmp.width  = src.width
+    tmp.height = src.height
+    const tc   = tmp.getContext('2d')!
+    tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to the export
+    tc.drawImage(src, 0, 0)
+    setCaptured(tmp.toDataURL('image/png'))
   }, [])
 
-  const downloadCapture = useCallback(() => {
-    if (capturedImage) {
-      const link = document.createElement('a')
-      link.download = `ar-tryon-${Date.now()}.png`
-      link.href = capturedImage
-      link.click()
-    }
-  }, [capturedImage])
-
-  const dismissCapture = useCallback(() => {
-    setIsCaptured(false)
-    setCapturedImage(null)
+  // ─── Rescan ───────────────────────────────────────────────────────────────
+  const rescan = useCallback(() => {
+    scanBufRef.current    = []
+    calibRef.current      = null
+    scaleRatioRef.current = 1
+    phaseRef.current      = 'scanning'
+    if (glassesRef.current) glassesRef.current.visible = false
+    setScanPct(0)
+    setStatus('scanning')
   }, [])
 
-  const retryPermission = useCallback(() => {
-    setHasPermission(null)
-    setErrorMessage(null)
-    initMediapipeAR()
-  }, [initMediapipeAR])
+  // ─── Retry camera ─────────────────────────────────────────────────────────
+  const retry = useCallback(() => {
+    initRef.current = false
+    setStatus('loading')
+    setErrMsg(null)
+    setDenied(false)
+    initAR()
+  }, [initAR])
 
-  if (!product) {
-    return (
-      <main className="main-content ar-tryon-page">
-        <div className="ar-not-found">
-          <h1>Product Not Found</h1>
-          <p>The product you're looking for doesn't exist.</p>
-          <button onClick={() => navigate('/collection')} className="back-btn">
-            Back to Collection
-          </button>
-        </div>
-      </main>
-    )
-  }
+  // ─── Product not found ────────────────────────────────────────────────────
+  if (!product) return (
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 text-white">
+      <p className="text-lg font-light opacity-70">Product not found</p>
+      <button onClick={() => navigate('/collection')}
+        className="px-6 py-2 rounded-full border border-white/20 hover:border-yellow-400 hover:text-yellow-400 text-sm transition-colors">
+        Back to Collection
+      </button>
+    </main>
+  )
 
   return (
-    <main className="main-content ar-tryon-page">
-      <header className="ar-header">
-        <motion.button 
-          className="back-button"
-          onClick={() => navigate(`/product/${productId}`)}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
+    <main className="min-h-screen bg-[#0a0a0a] flex flex-col overflow-hidden">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <header className="fixed top-0 inset-x-0 z-[210] flex items-center justify-between
+                         px-5 py-3 bg-black/80 backdrop-blur-md border-b border-white/10">
+        <motion.button
+          initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+          onClick={() => { stopAR(); navigate(`/product/${productId}`) }}
+          className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20
+                     text-white text-sm transition-colors hover:border-yellow-400 hover:text-yellow-400"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          <span>Back</span>
+          Back
         </motion.button>
-        
-        <motion.h1 
-          className="ar-title"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          Try On: <span className="accent">{product.name}</span>
-        </motion.h1>
 
-        <div className="ar-header-spacer" />
+        <motion.span
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="text-white text-sm font-light tracking-wide"
+        >
+          Try On: <span className="text-yellow-400">{product.name}</span>
+        </motion.span>
+
+        <div className="w-20" />
       </header>
 
-      <div className="ar-container" ref={containerRef}>
+      {/* ── Viewport ─────────────────────────────────────────────────────── */}
+      <div ref={containerRef}
+        className="relative flex-1 flex items-center justify-center bg-[#111] mt-[52px] overflow-hidden"
+        style={{ minHeight: 'calc(100vh - 180px)' }}
+      >
+        {/* Loading */}
         <AnimatePresence>
-          {isLoading && (
-            <motion.div 
-              className="ar-loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          {status === 'loading' && (
+            <motion.div key="spin"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-30 bg-[#111]"
             >
-              <div className="loading-spinner">
-                <div className="spinner-ring"></div>
-              </div>
-              <p>Initializing AR Camera...</p>
-              <span className="loading-hint">Please allow camera access</span>
+              <div className="w-12 h-12 rounded-full border-2 border-yellow-400/20 border-t-yellow-400 animate-spin" />
+              <p className="text-white/70 text-sm">Initialising AR camera…</p>
+              <p className="text-white/30 text-xs">Please allow camera access when prompted</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {errorMessage && (
-          <motion.div 
-            className="ar-error"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+        {/* Error */}
+        {status === 'error' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-30 px-8 text-center bg-[#111]"
           >
-            <div className="error-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <div className="w-12 h-12 rounded-full border border-red-400/50 flex items-center justify-center">
+              <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
             </div>
-            <p>{errorMessage}</p>
-            {hasPermission === false && (
-              <button onClick={retryPermission} className="retry-btn">
-                Try Again
+            <p className="text-white/70 text-sm leading-relaxed">{errMsg}</p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {denied && (
+                <button onClick={retry}
+                  className="px-5 py-2 rounded-full bg-yellow-400/10 border border-yellow-400/40
+                             text-yellow-400 text-sm hover:bg-yellow-400/20 transition-colors">
+                  Try Again
+                </button>
+              )}
+              <button onClick={() => navigate(`/product/${productId}`)}
+                className="px-5 py-2 rounded-full border border-white/20 text-white/60 text-sm hover:border-white/40 transition-colors">
+                Return to Product
               </button>
-            )}
-            <button onClick={() => navigate(`/product/${productId}`)} className="back-btn">
-              Return to Product
-            </button>
+            </div>
           </motion.div>
         )}
 
-        <div className="ar-video-container">
-          <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />
-          <canvas ref={canvasRef} className={`ar-canvas ${isARActive ? 'active' : ''}`} />
-          
-          {/* Face tracking indicator */}
-          {isARActive && !errorMessage && (
-            <motion.div 
-              className={`face-tracking-indicator ${faceDetected ? 'detected' : 'searching'}`}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
+        {/* ── AR canvas + overlays ─────────────────────────────────────── */}
+        <div className="relative w-full h-full max-w-3xl mx-auto">
+          {/* hidden video element — MediaPipe reads from this */}
+          <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+
+          {/*
+            THE KEY:  style={{ transform: 'scaleX(-1)' }}
+            This single CSS rule flips the entire canvas horizontally so the
+            viewer sees a selfie mirror — without any canvas-context flipping.
+            Because both the video pixels AND the Three.js glasses pixels are
+            drawn in raw (unflipped) space and then CSS-mirrored together,
+            the glasses always appear on the correct side of the face.
+          */}
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full object-contain"
+            style={{
+              transform: 'scaleX(-1)',
+              display: status === 'error' || status === 'loading' ? 'none' : 'block',
+            }}
+          />
+
+          {/* Scan overlay */}
+          <AnimatePresence>
+            {status === 'scanning' && (
+              <motion.div key="scan"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                style={{ background: 'rgba(0,0,0,0.18)' }}
+              >
+                {/* Face guide */}
+                <div className="relative" style={{ width: 240, height: 320 }}>
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 240 320" fill="none"
+                    style={{ filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.6))' }}>
+                    {/* corner brackets */}
+                    <path d="M46 16 L16 16 L16 52"  stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M194 16 L224 16 L224 52" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M46 304 L16 304 L16 268" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M194 304 L224 304 L224 268" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    {/* oval */}
+                    <ellipse cx="120" cy="160" rx="100" ry="138"
+                      stroke="rgba(212,175,55,0.3)" strokeWidth="1.5" strokeDasharray="6 5"/>
+                  </svg>
+
+                  {/* animated scan line */}
+                  <div className="absolute left-[8%] right-[8%] h-[2px] rounded-full"
+                    style={{
+                      background: 'linear-gradient(90deg,transparent,rgba(212,175,55,0.95) 50%,transparent)',
+                      boxShadow: '0 0 12px 3px rgba(212,175,55,0.5)',
+                      animation: 'scanLine 1.8s ease-in-out infinite',
+                    }}
+                  />
+                </div>
+
+                {/* Progress */}
+                <div className="mt-6 flex flex-col items-center gap-3" style={{ width: 220 }}>
+                  <p className="text-white text-sm font-medium text-center tracking-wide">
+                    {scanPct < 100 ? 'Hold still — scanning your face…' : 'Calibration complete!'}
+                  </p>
+                  <div className="w-full h-[3px] bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-[width] duration-100"
+                      style={{
+                        width: `${scanPct}%`,
+                        background: 'linear-gradient(90deg,#92660a,#D4AF37,#f0d060)',
+                        boxShadow: '0 0 6px rgba(212,175,55,0.5)',
+                      }}
+                    />
+                  </div>
+                  <p className="text-white/40 text-xs tabular-nums">{scanPct}%</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Face tracking badge */}
+          {status === 'running' && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className={`absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2
+                         px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border
+                         ${faceLive
+                           ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-400'
+                           : 'bg-black/50 border-white/15 text-white/50'}`}
             >
-              <div className="indicator-dot"></div>
-              <span>{faceDetected ? 'Face Tracked' : 'Looking for face...'}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${faceLive ? 'bg-emerald-400' : 'bg-white/40 animate-pulse'}`}/>
+              {faceLive ? 'Face tracked' : 'Searching…'}
+              <button onClick={rescan} title="Re-calibrate"
+                className="ml-1 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
+                ↺
+              </button>
             </motion.div>
           )}
         </div>
 
+        {/* Screenshot preview */}
         <AnimatePresence>
-          {isCaptured && capturedImage && (
-            <motion.div 
-              className="capture-preview"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+          {captured && (
+            <motion.div key="cap"
+              initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 z-40 bg-black/95 flex flex-col rounded-none"
             >
-              <img src={capturedImage} alt="AR Capture" />
-              <div className="capture-actions">
-                <button onClick={downloadCapture} className="download-btn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <img src={captured} alt="Capture" className="flex-1 object-contain" />
+              <div className="flex gap-3 p-4 justify-center bg-black">
+                <button onClick={() => {
+                  const a = document.createElement('a')
+                  a.download = `ar-${Date.now()}.png`; a.href = captured; a.click()
+                }}
+                  className="flex items-center gap-2 px-5 py-2 rounded-full
+                             bg-yellow-400/10 border border-yellow-400/40 text-yellow-400 text-sm
+                             hover:bg-yellow-400/20 transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
-                  Download
+                  Save Photo
                 </button>
-                <button onClick={dismissCapture} className="dismiss-btn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
+                <button onClick={() => setCaptured(null)}
+                  className="px-5 py-2 rounded-full border border-white/20 text-white/60 text-sm hover:border-white/40 transition-colors">
                   Close
                 </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
 
-        {isARActive && !errorMessage && (
-          <motion.div 
-            className="ar-controls"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+      {/* ── Controls ─────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {(status === 'running' || status === 'scanning') && (
+          <motion.div key="controls"
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="flex flex-col items-center gap-4 py-5 px-6 bg-[#0a0a0a] border-t border-white/5"
           >
-            <button 
-              className="control-btn capture-btn" 
-              onClick={captureScreenshot}
+            {/* Size scaler */}
+            <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-white/40 text-xs tracking-wide">Size</span>
+                <span className="text-yellow-400/70 text-xs tabular-nums">{Math.round(userScale * 100)}%</span>
+              </div>
+              <div className="flex items-center gap-3 w-full">
+                {/* Decrease */}
+                <button
+                  onClick={() => setUserScale(s => parseFloat(Math.max(0.6, s - 0.05).toFixed(2)))}
+                  className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center
+                             text-white/60 hover:border-yellow-400/60 hover:text-yellow-400 transition-colors text-base leading-none"
+                  aria-label="Decrease size"
+                >−</button>
+
+                {/* Slider */}
+                <input
+                  type="range"
+                  min={0.6} max={1.5} step={0.01}
+                  value={userScale}
+                  onChange={e => setUserScale(parseFloat(e.target.value))}
+                  className="flex-1 h-1 appearance-none rounded-full cursor-pointer
+                             accent-yellow-400"
+                  style={{
+                    background: `linear-gradient(to right, #D4AF37 ${((userScale - 0.6) / 0.9) * 100}%, rgba(255,255,255,0.12) 0%)`,
+                  }}
+                />
+
+                {/* Increase */}
+                <button
+                  onClick={() => setUserScale(s => parseFloat(Math.min(1.5, s + 0.05).toFixed(2)))}
+                  className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center
+                             text-white/60 hover:border-yellow-400/60 hover:text-yellow-400 transition-colors text-base leading-none"
+                  aria-label="Increase size"
+                >+</button>
+
+                {/* Reset */}
+                <button
+                  onClick={() => setUserScale(1.0)}
+                  title="Reset size"
+                  className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center
+                             text-white/30 hover:text-white/60 hover:border-white/25 transition-colors text-xs"
+                >↺</button>
+              </div>
+            </div>
+
+            {/* Camera shutter */}
+            <button
+              onClick={capture}
+              disabled={status !== 'running'}
+              className="flex flex-col items-center gap-2 group disabled:opacity-25 disabled:cursor-not-allowed"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-              <span>Capture</span>
+              <span className="w-14 h-14 rounded-full border-2 border-white/15 flex items-center justify-center
+                               bg-white/5 group-hover:bg-white/10 transition-colors group-disabled:bg-transparent">
+                <svg className="w-6 h-6 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </span>
+              <span className="text-white/50 text-xs">Capture</span>
             </button>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* ── Tips ─────────────────────────────────────────────────────────── */}
+      <div className="bg-[#0a0a0a] px-6 pb-5">
+        <ul className="flex flex-wrap justify-center gap-x-8 gap-y-1">
+          {[['💡','Good lighting'],['📱','Camera at eye level'],['👤','Look straight ahead'],['🖼️','Neutral background']].map(([ic,tip])=>(
+            <li key={tip} className="flex items-center gap-1.5 text-white/30 text-xs"><span>{ic}</span>{tip}</li>
+          ))}
+        </ul>
       </div>
 
-      <motion.div 
-        className="ar-tips"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        <h3>Tips for best results</h3>
-        <ul>
-          <li><span className="tip-icon">💡</span>Ensure good lighting on your face</li>
-          <li><span className="tip-icon">📱</span>Hold your device at eye level</li>
-          <li><span className="tip-icon">👤</span>Look directly at the camera</li>
-          <li><span className="tip-icon">🖼️</span>Keep a neutral background</li>
-        </ul>
-      </motion.div>
+      {/* scan-line keyframe */}
+      <style>{`
+        @keyframes scanLine {
+          0%   { top: 4%;  opacity: 0 }
+          8%   { opacity: 1 }
+          92%  { opacity: 1 }
+          100% { top: 88%; opacity: 0 }
+        }
+      `}</style>
     </main>
   )
 }
-
-export default ARTryOnPage

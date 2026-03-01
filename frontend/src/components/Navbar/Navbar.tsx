@@ -80,6 +80,9 @@ const Navbar: React.FC = memo(() => {
     }
   }, [closeMobileMenu, navigate, location.pathname])
 
+  // Hide completely on the AR try-on page — it has its own back button header
+  if (location.pathname.startsWith('/ar/')) return null
+
   return (
     <>
       <motion.nav
