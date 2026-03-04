@@ -72,6 +72,7 @@ export default function ARTryOnPage() {
   const glassesRef   = useRef<THREE.Group | null>(null)
   const occluderRef  = useRef<THREE.Mesh | null>(null)   // depth-only face oval — occludes temple arms
   const modelWRef    = useRef(1)  // native model width in model units
+  const modelDRef    = useRef(0.4) // native model depth (Z extent) for occluder scaling
 
   // MediaPipe / loop
   const faceMeshRef  = useRef<FaceMesh | null>(null)
@@ -224,6 +225,7 @@ export default function ARTryOnPage() {
       // Centre model so it pivots around nose bridge when we translate
       model.position.set(-center.x, -center.y, -center.z)
       modelWRef.current = size.x
+      modelDRef.current = size.z || size.x * 0.4  // fallback depth estimate
       console.log('[AR] model w:', size.x.toFixed(4), 'h:', size.y.toFixed(4), 'd:', size.z.toFixed(4))
 
       // Face the camera (+Z direction).  Most glasses GLBs face -Z by default.
@@ -400,12 +402,20 @@ export default function ARTryOnPage() {
       const posX = anchorX - halfW
       const posY = -(anchorY - halfH) + product.offsetY
 
-      // ── Face depth occluder — update shape each frame ─────────────────
-      // The occluder is a depth-only ellipse at z=-20 (behind the glasses
-      // front frame at z≈0 but in front of the temple tips at z<-20).
-      // Any glasses geometry that falls behind this plane gets depth-clipped,
-      // making temples appear to pass behind the face / ears.
+      // ── Compute scale FIRST — needed by both occluder and glasses ────
+      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
+      const LERP    = 0.35
+      const sf      = scaleRatioRef.current * liveSpan * userScaleRef.current
+
+      // ── Face depth occluder — z scales with glasses ───────────────────
+      // The occluder is a depth-only ellipse whose z-position is proportional
+      // to the current glasses scale.  This keeps the same fraction of temple
+      // arm visible regardless of how close/far the user is from the camera.
+      //   sf * modelDRef = total temple depth in scene units at current scale
+      //   × 0.65 → clip the rear 35% of temples (behind-the-ear portion)
       if (occluderRef.current) {
+        const scaledTempleDepth = sf * modelDRef.current
+
         // Face centre in ortho coords
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
         const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
@@ -414,21 +424,13 @@ export default function ARTryOnPage() {
         const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
         const faceHH = Math.abs(fBotY - fTopY) * 0.56
 
-        occluderRef.current.position.set(faceCX, faceCY, -20)
+        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
         occluderRef.current.scale.set(faceHW, faceHH, 1)
         occluderRef.current.rotation.z = -roll
         occluderRef.current.visible = true
       }
 
       // ── Apply to glasses group with LERP smoothing ───────────────────────
-      // KEY: scale is re-computed from LIVE landmark pixel span every frame.
-      // As the user moves closer  → templeSpan px grows   → sf grows   → glasses stay fitted.
-      // As the user moves farther → templeSpan px shrinks → sf shrinks → glasses stay fitted.
-      // The locked calibration phase only determines WHEN to show the glasses (stable tracking),
-      // not the ongoing scale — that always follows the face.
-      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
-      const LERP    = 0.35
-      const sf      = scaleRatioRef.current * liveSpan * userScaleRef.current
       const glasses = glassesRef.current!
       const tPos    = new THREE.Vector3(posX, posY, 0)
       const tScale  = new THREE.Vector3(sf, sf, sf)

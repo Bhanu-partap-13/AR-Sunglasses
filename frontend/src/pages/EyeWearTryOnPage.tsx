@@ -1,27 +1,13 @@
 /**
- * EyeWearTryOnPage — Snapchat-style fullscreen AR try-on
+ * EyeWearTryOnPage v2 — Snapchat-style fullscreen AR try-on
  *
- * ┌────────────────────────────────────────────────────────────────────┐
- * │  KEY DESIGN DECISIONS                                              │
- * │                                                                    │
- * │  1. CSS scaleX(-1) mirror on canvas — MediaPipe sees raw video,   │
- * │     landmarks are raw coords.  THREE.js draws in raw space.        │
- * │     CSS flip shows the viewer a selfie-mirror with glasses on      │
- * │     the correct side.                                              │
- * │                                                                    │
- * │  2. Eye-level anchor — uses iris landmarks (468, 473) so the      │
- * │     glasses sit ON the eyes, not floating below at nose level.     │
- * │                                                                    │
- * │  3. Full 3D rotation — yaw (head turn), pitch (head tilt up/dn)   │
- * │     and roll (head lean) are applied to glasses.rotation so        │
- * │     temples appear correctly on side-profile views.                │
- * │                                                                    │
- * │  4. Scale anchored to outer-eye span — scales the frame to        │
- * │     exactly cover the eyes; won't look "incoming" toward camera.   │
- * │                                                                    │
- * │  5. Dual-LERP — position snaps fast (0.35), scale changes slowly  │
- * │     (0.12) so glasses don't zoom in/out when face moves in depth.  │
- * └────────────────────────────────────────────────────────────────────┘
+ * KEY FIXES (v2):
+ *  1. Square camera viewport — centre-cropped from camera feed, black letterbox
+ *  2. Face scanning phase (30 frames) — glasses only appear after stable detection
+ *  3. Roll-only rotation — NO yaw/pitch (which was causing "revolving around face")
+ *     Real Snapchat/TikTok filters track position + scale + roll only
+ *  4. Non-blocking capture — uses toBlob() instead of synchronous toDataURL()
+ *  5. Proportional occluder z — temples clip consistently at any face distance
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -31,44 +17,19 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FaceMesh } from '@mediapipe/face_mesh'
 
-// ─── Glasses catalogue (4 entries shown in the bottom carousel) ──────────────
+//  Glasses catalogue 
 const GLASSES_CATALOGUE = [
-  {
-    id: 'glasses-7b',
-    name: 'Wayfarer',
-    modelPath: '/models/glasses-7b.glb',
-    offsetY: 0,
-    scale: 1.0,
-  },
-  {
-    id: 'glasses1',
-    name: 'Aviator',
-    modelPath: '/models/glasses1.glb',
-    offsetY: 0,
-    scale: 1.0,
-  },
-  {
-    id: 'glasses-9c',
-    name: 'Retro Square',
-    modelPath: '/models/glasses-9c.glb',
-    offsetY: 0,
-    scale: 1.0,
-  },
-  {
-    id: 'sunglasses',
-    name: 'Classic',
-    modelPath: '/models/sunglasses.glb',
-    offsetY: 0,
-    scale: 1.0,
-  },
+  { id: 'glasses-7b',  name: 'Wayfarer',     modelPath: '/models/glasses-7b.glb',  offsetY: 0, scale: 1.0 },
+  { id: 'glasses1',    name: 'Aviator',      modelPath: '/models/glasses1.glb',    offsetY: 0, scale: 1.0 },
+  { id: 'glasses-9c',  name: 'Retro Square', modelPath: '/models/glasses-9c.glb',  offsetY: 0, scale: 1.0 },
+  { id: 'sunglasses',  name: 'Classic',      modelPath: '/models/sunglasses.glb',  offsetY: 0, scale: 1.0 },
 ]
 
 type GlassesEntry = typeof GLASSES_CATALOGUE[0]
+const SCAN_FRAMES = 30
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
-// ─── Lerp helper ─────────────────────────────────────────────────────────────
-const lp = (a: number, b: number, t: number) => a + (b - a) * t
-
-// ─── Carousel icons defined at module level (never recreated on render) ──────
+// Module-level carousel icons (never recreated)
 const CAROUSEL_ICONS: Record<string, JSX.Element> = {
   'glasses-7b': (
     <svg viewBox="0 0 64 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
@@ -108,7 +69,7 @@ const CAROUSEL_ICONS: Record<string, JSX.Element> = {
   ),
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+//  Component 
 export default function EyeWearTryOnPage() {
   const navigate = useNavigate()
 
@@ -125,99 +86,97 @@ export default function EyeWearTryOnPage() {
   const glassesRef   = useRef<THREE.Group | null>(null)
   const occluderRef  = useRef<THREE.Mesh | null>(null)
   const modelWRef    = useRef(1)
-  const modelDRef    = useRef(0.4)  // depth (Z) of model in native units
+  const modelDRef    = useRef(0.4) // native model depth for occluder scaling
 
-  // MediaPipe / loop
-  const faceMeshRef  = useRef<FaceMesh | null>(null)
-  const initRef      = useRef(false)
-  const busyRef      = useRef(false)
+  // MediaPipe
+  const faceMeshRef = useRef<FaceMesh | null>(null)
+  const initRef     = useRef(false)
+  const busyRef     = useRef(false)
 
-  // Smoothed state (raw, not React state — updated every frame for performance)
-  const sfSmoothedRef  = useRef(1)
-  const posSmoothedRef = useRef(new THREE.Vector3())
-  const rollSmRef      = useRef(0)
-  const yawSmRef       = useRef(0)
-  const pitchSmRef     = useRef(0)
+  // Smoothed tracking (raw refs for 60fps perf) — NO yaw/pitch
+  const smPosX  = useRef(0)
+  const smPosY  = useRef(0)
+  const smScale = useRef(1)
+  const smRoll  = useRef(0)
 
-  // UI state
-  const [selectedIdx,  setSelectedIdx]  = useState(0)
-  const [status,       setStatus]       = useState<'loading' | 'running' | 'error'>('loading')
-  const [errMsg,       setErrMsg]       = useState<string | null>(null)
-  const [faceLive,     setFaceLive]     = useState(false)
-  const [captured,     setCaptured]     = useState<string | null>(null)
-  const [userScale,    setUserScale]    = useState(1.0)
+  // Scan/calibration
+  const scanCountRef   = useRef(0)
+  const phaseRef       = useRef<'scanning' | 'ready'>('scanning')
+  const scaleRatioRef  = useRef(1) // product.scale / modelNativeWidth
+
+  // Square crop info (filled once on camera init)
+  const cropRef = useRef({ vW: 720, vH: 720, S: 720, cropX: 0, cropY: 0 })
+
+  // UI
+  const [selectedIdx, setSelectedIdx] = useState(0)
+  const [status,      setStatus]      = useState<'loading' | 'scanning' | 'running' | 'error'>('loading')
+  const [errMsg,      setErrMsg]      = useState<string | null>(null)
+  const [faceLive,    setFaceLive]    = useState(false)
+  const [captured,    setCaptured]    = useState<string | null>(null)
+  const [scanPct,     setScanPct]     = useState(0)
+  const [userScale,   setUserScale]   = useState(1.0)
   const userScaleRef = useRef(1.0)
   useEffect(() => { userScaleRef.current = userScale }, [userScale])
 
-  // Track which glasses entry is loaded as the active model
-  const activeEntryRef  = useRef<GlassesEntry | null>(null)
-  // Increment to discard stale async model loads (race-condition guard)
-  const loadingKeyRef   = useRef(0)
-  // Mirrors selectedIdx synchronously so async callbacks can read the latest value
-  const selectedIdxRef  = useRef(0)
+  // Guards
+  const activeEntryRef = useRef<GlassesEntry | null>(null)
+  const loadKeyRef     = useRef(0)
+  const selectedIdxRef = useRef(0)
   useEffect(() => { selectedIdxRef.current = selectedIdx }, [selectedIdx])
-  // Guards React state-setters after unmount
   const mountedRef = useRef(true)
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
+  //  Cleanup 
   const stopAR = useCallback(() => {
     if (videoRef.current?.srcObject) {
       ;(videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop())
       videoRef.current.srcObject = null
     }
     faceMeshRef.current?.close()
-    faceMeshRef.current = null
+    faceMeshRef.current  = null
     rendererRef.current?.dispose()
-    rendererRef.current = null
+    rendererRef.current  = null
     sceneRef.current?.clear()
-    sceneRef.current    = null
-    offscreenRef.current  = null   // prevent dangling 2D ctx draws after cleanup
-    glassesRef.current    = null
-    occluderRef.current   = null
-    activeEntryRef.current  = null
-    loadingKeyRef.current   = 0    // invalidate any pending model loads
-    initRef.current     = false
-    busyRef.current     = false
-    sfSmoothedRef.current = 1
-    posSmoothedRef.current.set(0, 0, 0)
-    rollSmRef.current   = 0
-    yawSmRef.current    = 0
-    pitchSmRef.current  = 0
+    sceneRef.current     = null
+    offscreenRef.current = null
+    glassesRef.current   = null
+    occluderRef.current  = null
+    activeEntryRef.current = null
+    loadKeyRef.current   = 0
+    initRef.current      = false
+    busyRef.current      = false
+    scanCountRef.current = 0
+    scaleRatioRef.current = 1
+    phaseRef.current     = 'scanning'
+    smPosX.current = 0; smPosY.current = 0
+    smScale.current = 1; smRoll.current = 0
   }, [])
 
-  // ─── Load / swap glasses model ───────────────────────────────────────────
+  //  Load / swap glasses model 
   const loadGlassesModel = useCallback(async (entry: GlassesEntry) => {
     if (!sceneRef.current) return
     const scene = sceneRef.current
-    // Claim a unique key — any older pending load will abort when it resolves.
-    const myKey = ++loadingKeyRef.current
+    const myKey = ++loadKeyRef.current
 
-    // Remove existing glasses group
-    if (glassesRef.current) {
-      scene.remove(glassesRef.current)
-      glassesRef.current = null
-    }
+    if (glassesRef.current) { scene.remove(glassesRef.current); glassesRef.current = null }
 
     const gltf = await new Promise<any>((res, rej) =>
       new GLTFLoader().load(entry.modelPath, res, undefined, rej)
     )
-    // Stale-load guard: bail if a newer request arrived or the component unmounted.
-    if (myKey !== loadingKeyRef.current || !sceneRef.current) return
+    if (myKey !== loadKeyRef.current || !sceneRef.current) return
     const model  = gltf.scene
     const box    = new THREE.Box3().setFromObject(model)
     const size   = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
 
-    // Centre model so pivot is nose-bridge
     model.position.set(-center.x, -center.y, -center.z)
     modelWRef.current = size.x
-    modelDRef.current = size.z || size.x * 0.45  // fallback depth estimate
+    modelDRef.current = size.z || size.x * 0.4
 
-    // Base orientation: face the camera (+Z), rotation.y handled per-frame
-    // No static rotation.y = Math.PI here — we set it every frame for 3D tracking.
+    // Face the camera
+    model.rotation.y = Math.PI
 
-    // Material tuning
+    // Material pass
     model.traverse((child: any) => {
       if (!child.isMesh) return
       child.frustumCulled = false
@@ -234,7 +193,7 @@ export default function EyeWearTryOnPage() {
 
       if (isLens) {
         mat.transparent = true
-        if (!mat.opacity || mat.opacity >= 1) mat.opacity = 0.5
+        if (!mat.opacity || mat.opacity >= 1) mat.opacity = 0.45
         mat.depthWrite = false
       } else {
         if (mat.metalness !== undefined) mat.metalness = Math.min(mat.metalness, 0.7)
@@ -257,9 +216,11 @@ export default function EyeWearTryOnPage() {
     })
 
     activeEntryRef.current = entry
+    // Store scale ratio for this model
+    scaleRatioRef.current = entry.scale / modelWRef.current
   }, [])
 
-  // ─── Initialise AR (camera + Three.js + FaceMesh) ───────────────────────
+  //  Init AR 
   const initAR = useCallback(async (initialEntry: GlassesEntry) => {
     if (!videoRef.current || !canvasRef.current || initRef.current) return
     initRef.current = true
@@ -268,10 +229,10 @@ export default function EyeWearTryOnPage() {
     const canvas = canvasRef.current
     const ctx    = canvas.getContext('2d', { willReadFrequently: true })!
 
-    // ── Camera stream ──────────────────────────────────────────────────────
+    //  Camera — request square-ish, we will crop to square 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
       })
       if (!containerRef.current) { stream.getTracks().forEach(t => t.stop()); return }
       video.srcObject = stream
@@ -281,21 +242,26 @@ export default function EyeWearTryOnPage() {
       console.error('[AR] camera:', e)
       initRef.current = false
       setErrMsg(
-        e.name === 'NotAllowedError' ? 'Camera permission denied. Please allow camera access and reload.' :
+        e.name === 'NotAllowedError' ? 'Camera permission denied. Please allow camera access.' :
         e.name === 'NotFoundError'   ? 'No camera found on this device.' :
         `Camera error: ${e.message}`
       )
-      setStatus('error')
-      return
+      setStatus('error'); return
     }
 
-    // ── Canvas size = camera resolution ────────────────────────────────────
-    canvas.width  = video.videoWidth  || 1280
-    canvas.height = video.videoHeight || 720
-    const W = canvas.width, H = canvas.height
-    const halfW = W / 2, halfH = H / 2
+    //  Square crop from camera feed 
+    const vW = video.videoWidth  || 720
+    const vH = video.videoHeight || 720
+    const S  = Math.min(vW, vH)
+    const cropX = Math.floor((vW - S) / 2)
+    const cropY = Math.floor((vH - S) / 2)
+    cropRef.current = { vW, vH, S, cropX, cropY }
 
-    // ── Three.js — 1 unit = 1 pixel orthographic ───────────────────────────
+    canvas.width  = S
+    canvas.height = S
+    const W = S, H = S, halfW = W / 2, halfH = H / 2
+
+    //  Three.js orthographic (1 unit = 1 px) 
     const scene = new THREE.Scene()
     sceneRef.current = scene
 
@@ -316,72 +282,69 @@ export default function EyeWearTryOnPage() {
     renderer.setPixelRatio(1)
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.setClearColor(0x000000, 0)
-    renderer.shadowMap.enabled = false
     rendererRef.current = renderer
 
-    // ── Lighting ───────────────────────────────────────────────────────────
+    // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 1.2))
     const key = new THREE.DirectionalLight(0xffffff, 0.8)
     key.position.set(2, 4, 6); scene.add(key)
     const fill = new THREE.DirectionalLight(0xffffff, 0.4)
     fill.position.set(-2, 0, 3); scene.add(fill)
-    const rimL = new THREE.DirectionalLight(0xffffff, 0.25)
-    rimL.position.set(-4, 2, -3); scene.add(rimL)
+    const rim = new THREE.DirectionalLight(0xffffff, 0.25)
+    rim.position.set(-4, 2, -3); scene.add(rim)
 
-    // ── Face depth occluder ────────────────────────────────────────────────
-    // Depth-only ellipse mesh that writes to depth buffer so temple arms
-    // that fall "behind" the face are correctly occluded — same technique
-    // used by Snapchat / Fittingbox for temple occlusion.
+    //  Face depth occluder 
     const occShape = new THREE.Shape()
     occShape.absellipse(0, 0, 1, 1, 0, Math.PI * 2, false, 0)
     const occGeo = new THREE.ShapeGeometry(occShape, 48)
     const occMat = new THREE.MeshBasicMaterial({
-      colorWrite: false,
-      depthWrite: true,
-      side: THREE.FrontSide,
+      colorWrite: false, depthWrite: true, side: THREE.FrontSide,
     })
     const occluder = new THREE.Mesh(occGeo, occMat)
-    occluder.renderOrder = 0   // writes depth first
+    occluder.renderOrder = 0
     occluder.visible = false
     scene.add(occluder)
     occluderRef.current = occluder
 
-    // ── Load initial model ─────────────────────────────────────────────────
-    try {
-      await loadGlassesModel(initialEntry)
-    } catch (e: any) {
+    // Load initial model
+    try { await loadGlassesModel(initialEntry) }
+    catch (e: any) {
       console.error('[AR] model:', e)
-      setErrMsg('Failed to load glasses model. Please try again.')
-      setStatus('error')
-      initRef.current = false
-      return
+      setErrMsg('Failed to load glasses model.')
+      setStatus('error'); initRef.current = false; return
     }
 
-    // ── MediaPipe FaceMesh ─────────────────────────────────────────────────
+    //  MediaPipe FaceMesh 
     const fm = new FaceMesh({
       locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
     })
     fm.setOptions({
       maxNumFaces: 1,
-      refineLandmarks: true,       // adds iris landmarks 468-477
-      minDetectionConfidence: 0.55,
-      minTrackingConfidence: 0.45,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.5,
     })
     faceMeshRef.current = fm
 
-    // ── Per-frame result handler ───────────────────────────────────────────
+    //  Per-frame handler 
     fm.onResults(results => {
       busyRef.current = false
+      const { vW: cVW, vH: cVH, S: cS, cropX: cCropX, cropY: cCropY } = cropRef.current
 
-      // Draw raw (unflipped) video — CSS scaleX(-1) on canvas provides the mirror.
+      // Draw centre-square crop of raw video (CSS scaleX(-1) provides mirror)
       ctx.clearRect(0, 0, W, H)
-      ctx.drawImage(results.image, 0, 0, W, H)
+      ctx.drawImage(results.image, cCropX, cCropY, cS, cS, 0, 0, W, H)
 
       const lms = results.multiFaceLandmarks?.[0]
       if (!lms) {
         if (mountedRef.current) setFaceLive(false)
         if (glassesRef.current) glassesRef.current.visible = false
         if (occluderRef.current) occluderRef.current.visible = false
+        // Reset scan if face lost during scanning
+        if (phaseRef.current === 'scanning') {
+          scanCountRef.current = 0
+          if (mountedRef.current) setScanPct(0)
+        }
         if (rendererRef.current && sceneRef.current && cameraRef.current)
           rendererRef.current.render(sceneRef.current, cameraRef.current)
         if (offscreenRef.current) ctx.drawImage(offscreenRef.current, 0, 0)
@@ -389,206 +352,214 @@ export default function EyeWearTryOnPage() {
       }
       if (mountedRef.current) setFaceLive(true)
 
-      // Raw pixel coords — no 1-lm.x inversion (CSS mirror handles visual flip)
-      const px = (l: { x: number }) => l.x * W
-      const py = (l: { y: number }) => l.y * H
+      //  Landmark pixel positions (mapped to cropped square) 
+      const px = (l: { x: number }) => (l.x * cVW - cCropX) * (W / cS)
+      const py = (l: { y: number }) => (l.y * cVH - cCropY) * (H / cS)
 
-      // ── Iris centres (most stable X source for horizontal anchor) ────────
+      // Iris centres
       const liX = px(lms[468] ?? lms[133])
       const riX = px(lms[473] ?? lms[362])
+      const liY = py(lms[468] ?? lms[159])
+      const riY = py(lms[473] ?? lms[386])
 
-      // ── Iris Y for vertical anchor (eye-level placement) ─────────────────
-      // lms[468] / lms[473] include iris — their Y ≈ pupil center Y.
-      const lirisY = py(lms[468] ?? lms[159])
-      const ririsY = py(lms[473] ?? lms[386])
-      const pupilY = (lirisY + ririsY) / 2
-
-      // ── Outer eye corners (for roll + eye-span scale) ─────────────────────
+      // Outer eye corners
       const loX = px(lms[33]),  loY = py(lms[33])
       const roX = px(lms[263]), roY = py(lms[263])
 
-      // ── Inner eye corners (roll stability) ──────────────────────────────
+      // Inner eye corners (roll stability)
       const liInX = px(lms[133]), liInY = py(lms[133])
       const riInX = px(lms[362]), riInY = py(lms[362])
 
-      // ── Temple landmarks (true glasses-width span) ───────────────────────
+      // Temple landmarks
       const ltX = px(lms[127]), ltY = py(lms[127])
       const rtX = px(lms[356]), rtY = py(lms[356])
 
-      // ── Face edge for occluder ────────────────────────────────────────────
+      // Nose bridge + glabella
+      const nbY = py(lms[168])
+      const gbY = py(lms[6])
+
+      // Face oval for occluder
       const fEarLX = px(lms[234]), fEarLY = py(lms[234])
       const fEarRX = px(lms[454]), fEarRY = py(lms[454])
       const fTopY  = py(lms[10])
       const fBotY  = py(lms[152])
 
-      // ── Nose landmarks for yaw/pitch ─────────────────────────────────────
-      const noseTipX = px(lms[1])
-      const noseTipY = py(lms[1])
-      const nbY      = py(lms[168])   // nose bridge
-      const gbY      = py(lms[6])     // glabella
-
-      // ────── MEASUREMENTS ──────────────────────────────────────────────────
-
-      // 1. Scale: blend outer-eye span with temple span for robust sizing.
-      //    Outer-eye span controls lens area; temple span provides frame width.
+      //  Measurements 
       const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
       const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
-      // Glasses real-world width ≈ 110% of outer-eye span (extends slightly past corners)
       const targetSpanPx = outerEyeSpan * 1.12 * 0.5 + templeSpan * 0.5
 
-      // 2. HEAD ROLL — average inner + outer corner vectors for stability
+      // Roll only — average inner + outer for stability
       const rollA = Math.atan2(roY - loY, roX - loX)
       const rollB = Math.atan2(riInY - liInY, riInX - liInX)
       const rollTarget = (rollA + rollB) / 2
 
-      // 3. HEAD YAW — how far nose tip is offset from the mid-point between ear edges
-      //    Positive raw yaw → nose shifted right in raw image → face turned to user's left
-      //    (after CSS mirror, viewer sees face turning their right)
-      const faceCtrX  = (fEarLX + fEarRX) / 2
-      const halfFaceW = (fEarRX - fEarLX) / 2
-      const yawNorm   = (noseTipX - faceCtrX) / (halfFaceW || 1)
-      const yawTarget = Math.max(-1, Math.min(1, yawNorm)) * (Math.PI / 2.2)
+      // Pupil Y for vertical anchor
+      const pupilY  = (liY + riY) / 2
+      const bridgeY = (nbY + gbY) / 2
 
-      // 4. HEAD PITCH — nose tip vertical offset from face vertical midpoint
-      const faceCtrY  = (fTopY + fBotY) / 2
-      const halfFaceH = (fBotY - fTopY) / 2
-      const pitchNorm = (noseTipY - faceCtrY) / (halfFaceH || 1)
-      const pitchTarget = Math.max(-0.8, Math.min(0.8, pitchNorm)) * (Math.PI / 5)
+      // Position anchor: iris midpoint (X), blend pupil + bridge (Y)
+      const anchorX = (liX + riX) / 2
+      const anchorY = pupilY * 0.65 + bridgeY * 0.35
 
-      // ────── SMOOTH ALL TRACKED VALUES ─────────────────────────────────────
-      const POS_LERP   = 0.35   // fast position tracking
-      const SCALE_LERP = 0.12   // slow scale — prevents "incoming" zoom effect
-      const ROT_LERP   = 0.28
+      //  Scanning phase 
+      if (phaseRef.current === 'scanning') {
+        scanCountRef.current++
+        const pct = Math.round(Math.min(scanCountRef.current / SCAN_FRAMES, 1) * 100)
+        if (mountedRef.current) setScanPct(pct)
 
-      const sf = (targetSpanPx / (modelWRef.current || 1)) * userScaleRef.current
-      sfSmoothedRef.current = lp(sfSmoothedRef.current, sf, SCALE_LERP)
-
-      // ── THREE ortho coords: canvas centre = origin, +x right, +y UP ──────
-      // Anchor at eye level: weight pupil Y heavily, lean slightly toward
-      // nose bridge for natural positioning (glasses sit on nose, over eyes).
-      const anchorYImg = pupilY * 0.65 + (nbY + gbY) / 2 * 0.35
-      const posX = (liX + riX) / 2 - halfW
-      const posY = -(anchorYImg - halfH) + (activeEntryRef.current?.offsetY ?? 0)
-
-      posSmoothedRef.current.x = lp(posSmoothedRef.current.x, posX, POS_LERP)
-      posSmoothedRef.current.y = lp(posSmoothedRef.current.y, posY, POS_LERP)
-
-      rollSmRef.current  = lp(rollSmRef.current,  rollTarget,  ROT_LERP)
-      yawSmRef.current   = lp(yawSmRef.current,   yawTarget,   ROT_LERP)
-      pitchSmRef.current = lp(pitchSmRef.current, pitchTarget, ROT_LERP)
-
-      // ────── FACE OCCLUDER ──────────────────────────────────────────────────
-      // An invisible ellipse at z = -0.65 * scaled depth that writes only to
-      // depth buffer.  Glasses geometry that falls behind this plane is culled,
-      // so temple arms appear to pass behind the face and behind the ears.
-      // When the face turns (yaw ≠ 0) the occluder automatically shifts with
-      // the face centre so the near temple stays visible.
-      if (occluderRef.current) {
-        const scaledDepth = sfSmoothedRef.current * modelDRef.current
-        // Face centre in THREE ortho space
-        const faceCX = faceCtrX - halfW
-        const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
-        // Occluder semi-axes: face half-width + padding, face half-height
-        const faceHW = halfFaceW * 1.05
-        const faceHH = Math.abs(fBotY - fTopY) * 0.52
-        occluderRef.current.position.set(faceCX, faceCY, -scaledDepth * 0.65)
-        occluderRef.current.scale.set(faceHW, faceHH, 1)
-        occluderRef.current.rotation.z = -rollSmRef.current
-        occluderRef.current.visible = true
+        if (scanCountRef.current >= SCAN_FRAMES) {
+          phaseRef.current = 'ready'
+          if (mountedRef.current) setStatus('running')
+        } else {
+          // During scan — render video only (no glasses)
+          if (occluderRef.current) occluderRef.current.visible = false
+          if (rendererRef.current && sceneRef.current && cameraRef.current)
+            rendererRef.current.render(sceneRef.current, cameraRef.current)
+          if (offscreenRef.current) ctx.drawImage(offscreenRef.current, 0, 0)
+          return
+        }
       }
 
-      // ────── APPLY TO GLASSES GROUP ────────────────────────────────────────
+      //  Scale 
+      const sf = (targetSpanPx / (modelWRef.current || 1)) * userScaleRef.current
+
+      //  Smoothing 
+      const POS_T   = 0.4
+      const SCALE_T = 0.12
+      const ROLL_T  = 0.3
+
+      const posX = anchorX - halfW
+      const posY = -(anchorY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
+
       const glasses = glassesRef.current
       if (!glasses) {
-        rendererRef.current?.render(sceneRef.current!, cameraRef.current!)
-        ctx.drawImage(offscreenRef.current!, 0, 0)
+        if (rendererRef.current && sceneRef.current && cameraRef.current)
+          rendererRef.current.render(sceneRef.current, cameraRef.current)
+        if (offscreenRef.current) ctx.drawImage(offscreenRef.current, 0, 0)
         return
       }
 
-      const sfFinal = sfSmoothedRef.current
+      if (!glasses.visible) {
+        // First frame after scan — snap immediately
+        smPosX.current  = posX
+        smPosY.current  = posY
+        smScale.current = sf
+        smRoll.current  = rollTarget
+        glasses.visible = true
+      } else {
+        smPosX.current  = lerp(smPosX.current,  posX,       POS_T)
+        smPosY.current  = lerp(smPosY.current,  posY,       POS_T)
+        smScale.current = lerp(smScale.current,  sf,         SCALE_T)
+        smRoll.current  = lerp(smRoll.current,   rollTarget, ROLL_T)
+      }
 
-      glasses.position.copy(posSmoothedRef.current)
-      glasses.scale.set(sfFinal, sfFinal, sfFinal)
+      //  Occluder — z scales with glasses 
+      if (occluderRef.current) {
+        const scaledTempleDepth = smScale.current * modelDRef.current
+        const faceCX = (fEarLX + fEarRX) / 2 - halfW
+        const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
+        const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
+        const faceHH = Math.abs(fBotY - fTopY) * 0.56
+        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
+        occluderRef.current.scale.set(faceHW, faceHH, 1)
+        occluderRef.current.rotation.z = -smRoll.current
+        occluderRef.current.visible = true
+      }
 
-      // Full 3D rotation:
-      //   roll  → Z axis (head lean left/right)
-      //   pitch → X axis (head tilt up/down)
-      //   yaw   → Y axis (head turn left/right) + Math.PI to face camera
-      // Euler order YXZ is natural for head rotation.
-      glasses.rotation.order = 'YXZ'
-      glasses.rotation.y = Math.PI + yawSmRef.current
-      glasses.rotation.x = pitchSmRef.current
-      glasses.rotation.z = -rollSmRef.current
+      //  Apply to glasses — ONLY position + scale + roll 
+      glasses.position.set(smPosX.current, smPosY.current, 0)
+      glasses.scale.setScalar(smScale.current)
+      // KEY FIX: rotation.y = Math.PI (static, face camera) + roll only
+      // NO yaw or pitch — this prevents the "revolving" artifact
+      glasses.rotation.set(0, Math.PI, -smRoll.current, 'YXZ')
 
-      glasses.visible = true
-
-      // Composite
+      // Composite Three.js over video
       if (rendererRef.current && sceneRef.current && cameraRef.current)
         rendererRef.current.render(sceneRef.current, cameraRef.current)
       if (offscreenRef.current) ctx.drawImage(offscreenRef.current, 0, 0)
     })
 
-    // ── Frame loop ─────────────────────────────────────────────────────────
+    //  Frame loop 
     const tick = async () => {
       if (!faceMeshRef.current) return
       if (video.readyState >= 2 && !busyRef.current) {
         busyRef.current = true
         try { await faceMeshRef.current.send({ image: video }) }
-        catch (e) { console.error('[AR] tick:', e); busyRef.current = false }
+        catch { busyRef.current = false }
       }
       requestAnimationFrame(tick)
     }
     if (video.readyState >= 2) tick()
     else video.addEventListener('loadeddata', tick, { once: true })
 
-    if (mountedRef.current) setStatus('running')
+    // Start scanning phase
+    scanCountRef.current = 0
+    phaseRef.current = 'scanning'
+    if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
 
-    // Edge-case: user may have switched the carousel during initialisation.
-    // Now that everything is ready, load the actually-desired model if it differs
-    // from the one loaded during startup.
+    // If user already picked a different model during init, load it
     const desired = GLASSES_CATALOGUE[selectedIdxRef.current]
     if (desired.id !== (activeEntryRef.current?.id ?? '')) {
       loadGlassesModel(desired).catch(console.error)
     }
   }, [loadGlassesModel])
 
-  // ─── Init on mount ────────────────────────────────────────────────────────
+  //  Lifecycle 
   useEffect(() => {
-    const entry = GLASSES_CATALOGUE[selectedIdx]
-    initAR(entry)
+    initAR(GLASSES_CATALOGUE[selectedIdx])
     return () => stopAR()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])  // run once on mount
+  }, [])
 
-  // ─── Swap model when user picks another style ─────────────────────────────
+  //  Swap model 
   useEffect(() => {
     const entry = GLASSES_CATALOGUE[selectedIdx]
     if (activeEntryRef.current?.id === entry.id) return
-    if (!sceneRef.current) return   // AR not yet initialised
-    // Hide while loading new model
+    if (!sceneRef.current) return
     if (glassesRef.current) glassesRef.current.visible = false
-    loadGlassesModel(entry).catch(e => console.error('[AR] swap model:', e))
+    // Re-scan when swapping models for proper fit
+    scanCountRef.current = 0
+    phaseRef.current = 'scanning'
+    if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
+    loadGlassesModel(entry).catch(console.error)
   }, [selectedIdx, loadGlassesModel])
 
-  // ─── Screenshot ───────────────────────────────────────────────────────────
+  //  Non-blocking capture 
   const capture = useCallback(() => {
     const src = canvasRef.current
     if (!src) return
-    const tmp = document.createElement('canvas')
-    tmp.width = src.width; tmp.height = src.height
-    const tc = tmp.getContext('2d')!
-    tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to export
-    tc.drawImage(src, 0, 0)
-    setCaptured(tmp.toDataURL('image/png'))
+    requestAnimationFrame(() => {
+      const tmp = document.createElement('canvas')
+      tmp.width = src.width; tmp.height = src.height
+      const tc = tmp.getContext('2d')!
+      tc.translate(src.width, 0); tc.scale(-1, 1)
+      tc.drawImage(src, 0, 0)
+      tmp.toBlob(blob => {
+        if (!blob || !mountedRef.current) return
+        setCaptured(URL.createObjectURL(blob))
+      }, 'image/png')
+    })
   }, [])
 
+  //  Rescan 
+  const rescan = useCallback(() => {
+    scanCountRef.current = 0
+    phaseRef.current = 'scanning'
+    if (glassesRef.current) glassesRef.current.visible = false
+    if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
+  }, [])
+
+  // 
+  // RENDER
+  // 
   return (
-    <main className="eyewear-tryon-root" style={{
-      position: 'fixed', inset: 0, background: '#000', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column',
+    <main style={{
+      position: 'fixed', inset: 0, background: '#000',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
 
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
+      {/*  Top bar  */}
       <header style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -620,7 +591,7 @@ export default function EyeWearTryOnPage() {
           EyeWear <span style={{ color: '#D4AF37' }}>Try On</span>
         </motion.span>
 
-        {/* Face-tracked badge */}
+        {/* Face badge */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           style={{
@@ -638,31 +609,117 @@ export default function EyeWearTryOnPage() {
             background: faceLive ? '#34d399' : 'rgba(255,255,255,0.4)',
             ...(faceLive ? {} : { animation: 'blink 1.2s ease-in-out infinite' }),
           }}/>
-          {faceLive ? 'Face tracked' : 'Searching…'}
+          {faceLive ? 'Face tracked' : 'Searching\u2026'}
+          {status === 'running' && (
+            <button onClick={rescan} title="Re-scan"
+              style={{
+                marginLeft: 4, background: 'none', border: 'none',
+                color: 'inherit', cursor: 'pointer', fontSize: 14, opacity: 0.6,
+                padding: 0, lineHeight: 1,
+              }}>\u21BA</button>
+          )}
         </motion.div>
       </header>
 
-      {/* ── Camera viewport ──────────────────────────────────────────────── */}
+      {/*  Square camera viewport  */}
       <div ref={containerRef} style={{
-        flex: 1, position: 'relative', overflow: 'hidden',
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
       }}>
-        {/* Hidden video source */}
         <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />
 
-        {/*
-          Mirror canvas: CSS scaleX(-1) is the key.
-          Both the 2D video pixels AND the Three.js glasses pixels are in raw
-          (unflipped) coordinates and CSS-mirrored together — so glasses always
-          appear on the correct side even as the head turns.
-        */}
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            transform: 'scaleX(-1)',
-            display: status === 'error' || status === 'loading' ? 'none' : 'block',
-          }}
-        />
+        {/* Square canvas wrapper */}
+        <div style={{
+          position: 'relative',
+          width: '100%', maxWidth: '100vh',
+          aspectRatio: '1 / 1',
+        }}>
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: '100%', height: '100%',
+              objectFit: 'contain',
+              transform: 'scaleX(-1)',
+              borderRadius: 12,
+              display: (status === 'error' || status === 'loading') ? 'none' : 'block',
+            }}
+          />
+
+          {/*  Scan overlay  */}
+          <AnimatePresence>
+            {status === 'scanning' && (
+              <motion.div key="scan"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{
+                  position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none', borderRadius: 12,
+                  background: 'rgba(0,0,0,0.15)',
+                }}
+              >
+                <div style={{ position: 'relative', width: 220, height: 300 }}>
+                  <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                    viewBox="0 0 220 300" fill="none"
+                    filter="drop-shadow(0 0 10px rgba(212,175,55,0.6))">
+                    <ellipse cx="110" cy="150" rx="95" ry="130"
+                      stroke="rgba(212,175,55,0.45)" strokeWidth="1.5" strokeDasharray="6 5"/>
+                    <path d="M35 20 L12 20 L12 55" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M185 20 L208 20 L208 55" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M35 280 L12 280 L12 245" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M185 280 L208 280 L208 245" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                  <div style={{
+                    position: 'absolute', left: '10%', right: '10%', height: 2, borderRadius: 1,
+                    background: 'linear-gradient(90deg,transparent,rgba(212,175,55,0.95) 50%,transparent)',
+                    boxShadow: '0 0 12px 3px rgba(212,175,55,0.5)',
+                    animation: 'scanLine 1.8s ease-in-out infinite',
+                  }}/>
+                </div>
+                <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 200 }}>
+                  <p style={{ color: '#fff', fontSize: 13, fontWeight: 500, textAlign: 'center',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                    {scanPct < 100 ? 'Scanning face\u2026' : 'Locked!'}
+                  </p>
+                  <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${scanPct}%`, height: '100%', borderRadius: 99,
+                      background: 'linear-gradient(90deg,#92660a,#D4AF37,#f0d060)',
+                      boxShadow: '0 0 6px rgba(212,175,55,0.5)',
+                      transition: 'width 80ms linear',
+                    }}/>
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{scanPct}%</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Face guide when running but no face */}
+          <AnimatePresence>
+            {status === 'running' && !faceLive && (
+              <motion.div key="guide"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{
+                  position: 'absolute', inset: 0, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+                }}
+              >
+                <svg width="200" height="280" viewBox="0 0 220 300" fill="none"
+                  style={{ filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.4))' }}>
+                  <ellipse cx="110" cy="150" rx="90" ry="128" stroke="rgba(212,175,55,0.5)"
+                    strokeWidth="1.5" strokeDasharray="7 5"/>
+                </svg>
+                <div style={{
+                  position: 'absolute', bottom: '15%',
+                  color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500,
+                  textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                }}>
+                  Position your face in the frame
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Loading spinner */}
         <AnimatePresence>
@@ -681,12 +738,8 @@ export default function EyeWearTryOnPage() {
                 borderTop: '2px solid #D4AF37',
                 animation: 'spin 0.85s linear infinite',
               }}/>
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>
-                Initialising AR camera…
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-                Allow camera access when prompted
-              </p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>Initialising camera\u2026</p>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>Allow camera access when prompted</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -722,60 +775,25 @@ export default function EyeWearTryOnPage() {
             >Try Again</button>
           </motion.div>
         )}
-
-        {/* Face guide ellipse — shown until face is detected */}
-        <AnimatePresence>
-          {status === 'running' && !faceLive && (
-            <motion.div
-              key="guide"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{
-                position: 'absolute', inset: 0, display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                pointerEvents: 'none',
-              }}
-            >
-              <svg width="220" height="300" viewBox="0 0 220 300" fill="none"
-                style={{ filter: 'drop-shadow(0 0 12px rgba(212,175,55,0.5))' }}>
-                <ellipse cx="110" cy="150" rx="95" ry="133" stroke="rgba(212,175,55,0.55)"
-                  strokeWidth="1.8" strokeDasharray="7 5"/>
-                {/* corner brackets */}
-                <path d="M35 22 L15 22 L15 58"  stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
-                <path d="M185 22 L205 22 L205 58" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
-                <path d="M35 278 L15 278 L15 242" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
-                <path d="M185 278 L205 278 L205 242" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-              <div style={{
-                position: 'absolute', bottom: '18%',
-                color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500,
-                textShadow: '0 1px 6px rgba(0,0,0,0.6)',
-                letterSpacing: '0.06em',
-              }}>
-                Position your face in the frame
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      {/* ── Bottom panel — model picker + shutter (like image 2) ─────────── */}
+      {/*  Bottom panel  */}
       <AnimatePresence>
-        {(status === 'running' || status === 'loading') && (
-          <motion.div
-            key="bottom"
+        {(status !== 'error' && status !== 'loading') && (
+          <motion.div key="bottom"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             style={{
               position: 'relative', zIndex: 40,
-              background: 'rgba(10,10,10,0.88)',
+              background: 'rgba(10,10,10,0.92)',
               backdropFilter: 'blur(16px)',
               borderTop: '1px solid rgba(255,255,255,0.07)',
               padding: '14px 20px 20px',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
             }}
           >
-            {/* Size scrubber */}
+            {/* Size slider */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300,
             }}>
@@ -784,79 +802,58 @@ export default function EyeWearTryOnPage() {
                 onClick={() => setUserScale(s => parseFloat(Math.max(0.6, s - 0.05).toFixed(2)))}
                 style={{
                   width: 28, height: 28, borderRadius: '50%',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'transparent', color: 'rgba(255,255,255,0.6)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', fontSize: 18, lineHeight: 1,
-                }}
-              >−</button>
-              <input
-                type="range" min={0.6} max={1.5} step={0.01}
-                value={userScale}
+                  border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+                  color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', fontSize: 18, lineHeight: 1,
+                }}>\u2212</button>
+              <input type="range" min={0.6} max={1.5} step={0.01} value={userScale}
                 onChange={e => setUserScale(parseFloat(e.target.value))}
                 style={{
                   flex: 1, height: 4, accentColor: '#D4AF37', cursor: 'pointer',
                   background: `linear-gradient(to right, #D4AF37 ${((userScale - 0.6) / 0.9) * 100}%, rgba(255,255,255,0.1) 0%)`,
                   borderRadius: 99, outline: 'none',
-                }}
-              />
+                }}/>
               <button
                 onClick={() => setUserScale(s => parseFloat(Math.min(1.5, s + 0.05).toFixed(2)))}
                 style={{
                   width: 28, height: 28, borderRadius: '50%',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'transparent', color: 'rgba(255,255,255,0.6)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', fontSize: 18, lineHeight: 1,
-                }}
-              >+</button>
+                  border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+                  color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', fontSize: 18, lineHeight: 1,
+                }}>+</button>
               <span style={{ color: '#D4AF37', fontSize: 11, width: 32, textAlign: 'right' }}>
                 {Math.round(userScale * 100)}%
               </span>
             </div>
 
-            {/* Glasses carousel + shutter */}
+            {/* Carousel + shutter */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: 12, width: '100%',
             }}>
-              {/* Model circles */}
               {GLASSES_CATALOGUE.map((g, idx) => {
                 const isActive = idx === selectedIdx
                 return (
-                  <motion.button
-                    key={g.id}
+                  <motion.button key={g.id}
                     onClick={() => setSelectedIdx(idx)}
                     whileTap={{ scale: 0.92 }}
                     style={{
                       width: 58, height: 58, borderRadius: '50%',
-                      border: isActive
-                        ? '2px solid #D4AF37'
-                        : '2px solid rgba(255,255,255,0.2)',
-                      background: isActive
-                        ? 'rgba(212,175,55,0.12)'
-                        : 'rgba(255,255,255,0.06)',
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', gap: 2, padding: '8px 10px',
+                      border: isActive ? '2px solid #D4AF37' : '2px solid rgba(255,255,255,0.2)',
+                      background: isActive ? 'rgba(212,175,55,0.12)' : 'rgba(255,255,255,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', padding: '8px 10px',
                       color: isActive ? '#D4AF37' : 'rgba(255,255,255,0.55)',
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0,
+                      transition: 'all 0.2s ease', flexShrink: 0,
                     }}
                     title={g.name}
                   >
-                    {CAROUSEL_ICONS[g.id] ?? (
-                      <svg viewBox="0 0 64 26" fill="none" className="w-full h-full">
-                        <ellipse cx="16" cy="13" rx="14" ry="9" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-                        <ellipse cx="48" cy="13" rx="14" ry="9" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-                        <path d="M30 10 Q32 8 34 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-                      </svg>
-                    )}
+                    {CAROUSEL_ICONS[g.id] ?? null}
                   </motion.button>
                 )
               })}
 
-              {/* Shutter button — centred between the models */}
+              {/* Shutter */}
               <motion.button
                 onClick={capture}
                 disabled={status !== 'running' || !faceLive}
@@ -866,7 +863,8 @@ export default function EyeWearTryOnPage() {
                   border: '2.5px solid rgba(255,255,255,0.5)',
                   background: 'rgba(255,255,255,0.08)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', flexShrink: 0,
+                  cursor: (status === 'running' && faceLive) ? 'pointer' : 'not-allowed',
+                  flexShrink: 0,
                   opacity: (status === 'running' && faceLive) ? 1 : 0.35,
                   boxShadow: faceLive ? '0 0 0 4px rgba(255,255,255,0.08)' : 'none',
                   transition: 'all 0.3s ease',
@@ -882,25 +880,20 @@ export default function EyeWearTryOnPage() {
             </div>
 
             {/* Style names */}
-            <div style={{
-              display: 'flex', gap: 12, justifyContent: 'center',
-            }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               {GLASSES_CATALOGUE.map((g, idx) => (
                 <span key={g.id} style={{
                   fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
                   color: idx === selectedIdx ? '#D4AF37' : 'rgba(255,255,255,0.3)',
                   transition: 'color 0.2s', width: 58, textAlign: 'center',
-                }}>
-                  {g.name}
-                </span>
+                }}>{g.name}</span>
               ))}
-              {/* Spacer to match shutter button */}
               <span style={{ width: 66 }}/>
             </div>
 
-            {/* Tip row */}
+            {/* Tips */}
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {[['💡','Good lighting'],['📱','Eye level'],['👤','Face forward'],['↩️','Turn to see temples']].map(([ic, tip]) => (
+              {[['\uD83D\uDCA1','Good lighting'],['\uD83D\uDCF1','Eye level'],['\uD83D\uDC64','Face forward'],['\u21A9\uFE0F','Turn to see temples']].map(([ic, tip]) => (
                 <span key={tip} style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   fontSize: 11, color: 'rgba(255,255,255,0.28)',
@@ -913,7 +906,7 @@ export default function EyeWearTryOnPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Screenshot preview overlay ───────────────────────────────────── */}
+      {/*  Screenshot preview  */}
       <AnimatePresence>
         {captured && (
           <motion.div key="cap"
@@ -931,7 +924,9 @@ export default function EyeWearTryOnPage() {
               <button
                 onClick={() => {
                   const a = document.createElement('a')
-                  a.download = `eyewear-${Date.now()}.png`; a.href = captured; a.click()
+                  a.download = `eyewear-${Date.now()}.png`
+                  a.href = captured; a.click()
+                  setTimeout(() => URL.revokeObjectURL(captured), 1000)
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -947,12 +942,11 @@ export default function EyeWearTryOnPage() {
                 Save Photo
               </button>
               <button
-                onClick={() => setCaptured(null)}
+                onClick={() => { URL.revokeObjectURL(captured); setCaptured(null) }}
                 style={{
                   padding: '9px 20px', borderRadius: 99,
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
                   color: 'rgba(255,255,255,0.6)', fontSize: 13, cursor: 'pointer',
-                  background: 'transparent',
                 }}
               >Close</button>
             </div>
@@ -960,10 +954,11 @@ export default function EyeWearTryOnPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Keyframe animations ──────────────────────────────────────────── */}
+      {/* Keyframes */}
       <style>{`
-        @keyframes spin  { to { transform: rotate(360deg) } }
-        @keyframes blink { 0%,100% { opacity: 0.4 } 50% { opacity: 1 } }
+        @keyframes spin     { to { transform: rotate(360deg) } }
+        @keyframes blink    { 0%,100% { opacity: 0.4 } 50% { opacity: 1 } }
+        @keyframes scanLine { 0% { top: 5%; opacity: 0 } 8% { opacity: 1 } 92% { opacity: 1 } 100% { top: 88%; opacity: 0 } }
       `}</style>
     </main>
   )
