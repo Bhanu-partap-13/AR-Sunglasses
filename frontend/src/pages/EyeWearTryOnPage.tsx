@@ -93,11 +93,13 @@ export default function EyeWearTryOnPage() {
   const initRef     = useRef(false)
   const busyRef     = useRef(false)
 
-  // Smoothed tracking (raw refs for 60fps perf) — NO yaw/pitch
+  // Smoothed tracking
   const smPosX  = useRef(0)
   const smPosY  = useRef(0)
   const smScale = useRef(1)
   const smRoll  = useRef(0)
+  const smYaw   = useRef(0)
+  const smPitch = useRef(0)
 
   // Scan/calibration
   const scanCountRef   = useRef(0)
@@ -371,8 +373,8 @@ export default function EyeWearTryOnPage() {
       const riInX = px(lms[362]), riInY = py(lms[362])
 
       // Temple landmarks
-      const ltX = px(lms[127]), ltY = py(lms[127])
-      const rtX = px(lms[356]), rtY = py(lms[356])
+      const ltX = px(lms[127]), ltY = py(lms[127]), ltZ = lms[127].z * cVW
+      const rtX = px(lms[356]), rtY = py(lms[356]), rtZ = lms[356].z * cVW
 
       // Nose bridge + glabella
       const nbY = py(lms[168])
@@ -381,26 +383,29 @@ export default function EyeWearTryOnPage() {
       // Face oval for occluder
       const fEarLX = px(lms[234]), fEarLY = py(lms[234])
       const fEarRX = px(lms[454]), fEarRY = py(lms[454])
-      const fTopY  = py(lms[10])
-      const fBotY  = py(lms[152])
+      const fTopY  = py(lms[10]), fTopZ = lms[10].z * cVW
+      const fBotY  = py(lms[152]), fBotZ = lms[152].z * cVW
 
       //  Measurements 
-      const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
       const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
-      const targetSpanPx = outerEyeSpan * 1.12 * 0.5 + templeSpan * 0.5
+      // Fit slightly wider than temple span to comfortably clear the head width
+      const targetSpanPx = templeSpan * 1.08
 
-      // Roll only — average inner + outer for stability
+      // Stable rotations from full 3D landmarks
+      // Roll: 2D angle between eyes
       const rollA = Math.atan2(roY - loY, roX - loX)
       const rollB = Math.atan2(riInY - liInY, riInX - liInX)
       const rollTarget = (rollA + rollB) / 2
 
-      // Pupil Y for vertical anchor
-      const pupilY  = (liY + riY) / 2
-      const bridgeY = (nbY + gbY) / 2
+      // Yaw: 3D depth difference between temples
+      const yawTarget = -Math.atan2((rtZ - ltZ), (rtX - ltX)) * 1.2
+      
+      // Pitch: 3D depth difference between forehead and chin
+      const pitchTarget = Math.atan2((fBotZ - fTopZ), (fBotY - fTopY)) - 0.15
 
-      // Position anchor: iris midpoint (X), blend pupil + bridge (Y)
-      const anchorX = (liX + riX) / 2
-      const anchorY = pupilY * 0.65 + bridgeY * 0.35
+      // Position anchor: exact midpoint between outer eye corners
+      const anchorX = (loX + roX) / 2
+      const anchorY = (loY + roY) / 2
 
       //  Scanning phase 
       if (phaseRef.current === 'scanning') {
@@ -422,12 +427,14 @@ export default function EyeWearTryOnPage() {
       }
 
       //  Scale 
-      const sf = (targetSpanPx / (modelWRef.current || 1)) * userScaleRef.current
+      //  Scale 
+      const initScale = activeEntryRef.current?.scale || 1
+      const sf = (targetSpanPx / (modelWRef.current || 1)) * initScale * userScaleRef.current
 
       //  Smoothing 
       const POS_T   = 0.4
       const SCALE_T = 0.12
-      const ROLL_T  = 0.3
+      const ROT_T   = 0.3
 
       const posX = anchorX - halfW
       const posY = -(anchorY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
@@ -446,33 +453,37 @@ export default function EyeWearTryOnPage() {
         smPosY.current  = posY
         smScale.current = sf
         smRoll.current  = rollTarget
+        smYaw.current   = yawTarget
+        smPitch.current = pitchTarget
         glasses.visible = true
       } else {
-        smPosX.current  = lerp(smPosX.current,  posX,       POS_T)
-        smPosY.current  = lerp(smPosY.current,  posY,       POS_T)
-        smScale.current = lerp(smScale.current,  sf,         SCALE_T)
-        smRoll.current  = lerp(smRoll.current,   rollTarget, ROLL_T)
+        smPosX.current  = lerp(smPosX.current,  posX,        POS_T)
+        smPosY.current  = lerp(smPosY.current,  posY,        POS_T)
+        smScale.current = lerp(smScale.current, sf,          SCALE_T)
+        smRoll.current  = lerp(smRoll.current,  rollTarget,  ROT_T)
+        smYaw.current   = lerp(smYaw.current,   yawTarget,   ROT_T)
+        smPitch.current = lerp(smPitch.current, pitchTarget, ROT_T)
       }
 
-      //  Occluder — z scales with glasses 
+      //  Occluder — fully tracks face 3D to accurately mask temples
       if (occluderRef.current) {
         const scaledTempleDepth = smScale.current * modelDRef.current
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
         const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
         const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
         const faceHH = Math.abs(fBotY - fTopY) * 0.56
-        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
+        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.5)
         occluderRef.current.scale.set(faceHW, faceHH, 1)
-        occluderRef.current.rotation.z = -smRoll.current
+        // Keep occluder matching head 3D orientation for wrap-around precision
+        occluderRef.current.rotation.set(smPitch.current, smYaw.current, -smRoll.current, 'YXZ')
         occluderRef.current.visible = true
       }
 
-      //  Apply to glasses — ONLY position + scale + roll 
+      //  Apply to glasses — Full 3D rotation restored using robust FaceMesh depths
       glasses.position.set(smPosX.current, smPosY.current, 0)
       glasses.scale.setScalar(smScale.current)
-      // KEY FIX: rotation.y = Math.PI (static, face camera) + roll only
-      // NO yaw or pitch — this prevents the "revolving" artifact
-      glasses.rotation.set(0, Math.PI, -smRoll.current, 'YXZ')
+      // Base orientation is Math.PI (to face camera). Add yaw/pitch for true 3D
+      glasses.rotation.set(smPitch.current, Math.PI + smYaw.current, -smRoll.current, 'YXZ')
 
       // Composite Three.js over video
       if (rendererRef.current && sceneRef.current && cameraRef.current)
@@ -805,7 +816,7 @@ export default function EyeWearTryOnPage() {
                   border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
                   color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center',
                   justifyContent: 'center', cursor: 'pointer', fontSize: 18, lineHeight: 1,
-                }}>\u2212</button>
+                }}>-</button>
               <input type="range" min={0.6} max={1.5} step={0.01} value={userScale}
                 onChange={e => setUserScale(parseFloat(e.target.value))}
                 style={{

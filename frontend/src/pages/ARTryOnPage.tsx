@@ -485,13 +485,18 @@ export default function ARTryOnPage() {
   const capture = useCallback(() => {
     const src = canvasRef.current
     if (!src) return
-    const tmp  = document.createElement('canvas')
-    tmp.width  = src.width
-    tmp.height = src.height
-    const tc   = tmp.getContext('2d')!
-    tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to the export
-    tc.drawImage(src, 0, 0)
-    setCaptured(tmp.toDataURL('image/png'))
+    requestAnimationFrame(() => {
+      const tmp  = document.createElement('canvas')
+      tmp.width  = src.width
+      tmp.height = src.height
+      const tc   = tmp.getContext('2d')!
+      tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to the export
+      tc.drawImage(src, 0, 0)
+      tmp.toBlob((blob) => {
+        if (!blob) return
+        setCaptured(URL.createObjectURL(blob))
+      }, 'image/png')
+    })
   }, [])
 
   // ─── Rescan ───────────────────────────────────────────────────────────────
