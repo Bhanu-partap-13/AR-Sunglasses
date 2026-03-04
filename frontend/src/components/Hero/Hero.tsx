@@ -1,9 +1,11 @@
 import { useRef, memo } from 'react'
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import './Hero.scss'
 
 const Hero: React.FC = memo(() => {
   const sectionRef = useRef<HTMLElement>(null)
+  const navigate = useNavigate()
 
   return (
     <section id="hero" className="hero-section" ref={sectionRef}>
@@ -30,9 +32,13 @@ const Hero: React.FC = memo(() => {
             Each piece is meticulously designed for those who demand excellence.
           </p>
           <div className="hero-cta">
-            <a href="#customize" className="btn btn-primary">
-              <span>Customize Your Pair</span>
-            </a>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => navigate('/eyewear-tryon')}
+            >
+              <span>EyeWear Try On</span>
+            </button>
           </div>
         </motion.div>
       </div>

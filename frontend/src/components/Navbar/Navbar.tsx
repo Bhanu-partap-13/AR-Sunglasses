@@ -80,8 +80,8 @@ const Navbar: React.FC = memo(() => {
     }
   }, [closeMobileMenu, navigate, location.pathname])
 
-  // Hide completely on the AR try-on page — it has its own back button header
-  if (location.pathname.startsWith('/ar/')) return null
+  // Hide completely on the AR try-on page and EyeWear Try-On page — they have their own back button header
+  if (location.pathname.startsWith('/ar/') || location.pathname === '/eyewear-tryon') return null
 
   return (
     <>

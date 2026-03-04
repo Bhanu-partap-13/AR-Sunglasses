@@ -170,6 +170,7 @@ const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage'))
 const ProductPage = lazyWithRetry(() => import('./pages/ProductPage'))
 const CustomizePage = lazyWithRetry(() => import('./pages/CustomizePage'))
 const ARTryOnPage = lazyWithRetry(() => import('./pages/ARTryOnPage'))
+const EyeWearTryOnPage = lazyWithRetry(() => import('./pages/EyeWearTryOnPage'))
 
 // Styles
 import './App.scss'
@@ -199,6 +200,9 @@ const NavigationAwareFooter = () => {
     const t = setTimeout(() => setVisible(true), 400)
     return () => clearTimeout(t)
   }, [pathname])
+
+  // No footer on full-screen AR pages
+  if (pathname.startsWith('/ar/') || pathname === '/eyewear-tryon') return null
 
   return (
     <div
@@ -347,6 +351,7 @@ function App() {
               <Route path="/product/:productId" element={<ProductPage />} />
               <Route path="/customize" element={<CustomizePage />} />
               <Route path="/ar/:productId" element={<ARTryOnPage />} />
+              <Route path="/eyewear-tryon" element={<EyeWearTryOnPage />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
