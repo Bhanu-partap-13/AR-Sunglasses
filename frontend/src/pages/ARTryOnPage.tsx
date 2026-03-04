@@ -228,8 +228,9 @@ export default function ARTryOnPage() {
       modelDRef.current = size.z || size.x * 0.4  // fallback depth estimate
       console.log('[AR] model w:', size.x.toFixed(4), 'h:', size.y.toFixed(4), 'd:', size.z.toFixed(4))
 
-      // Face the camera (+Z direction).  Most glasses GLBs face -Z by default.
-      model.rotation.y = Math.PI
+      // Keep original model orientation - do not flip 180 degrees.
+      // Temples should extend backward (-Z), front should face forward (+Z).
+      model.rotation.y = 0
 
       // Material pass
       model.traverse((child: any) => {

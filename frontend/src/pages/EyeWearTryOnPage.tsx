@@ -166,8 +166,8 @@ export default function EyeWearTryOnPage() {
     modelWRef.current = size.x
     modelDRef.current = size.z || size.x * 0.4
 
-    // Face the camera
-    model.rotation.y = Math.PI
+    // Keep original model orientation
+    model.rotation.y = 0
 
     // Material pass
     model.traverse((child: any) => {
