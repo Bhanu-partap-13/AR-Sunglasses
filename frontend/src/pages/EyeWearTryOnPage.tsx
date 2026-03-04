@@ -27,7 +27,6 @@ const GLASSES_CATALOGUE = [
 
 type GlassesEntry = typeof GLASSES_CATALOGUE[0]
 const SCAN_FRAMES = 30
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 // Module-level carousel icons (never recreated)
 const CAROUSEL_ICONS: Record<string, JSX.Element> = {
@@ -93,18 +92,11 @@ export default function EyeWearTryOnPage() {
   const initRef     = useRef(false)
   const busyRef     = useRef(false)
 
-  // Smoothed tracking
-  const smPosX  = useRef(0)
-  const smPosY  = useRef(0)
-  const smScale = useRef(1)
-  const smRoll  = useRef(0)
-  const smYaw   = useRef(0)
-  const smPitch = useRef(0)
-
   // Scan/calibration
-  const scanCountRef   = useRef(0)
-  const phaseRef       = useRef<'scanning' | 'ready'>('scanning')
-  const scaleRatioRef  = useRef(1) // product.scale / modelNativeWidth
+  const scanBufRef    = useRef<{ts: number, oe: number}[]>([])
+  const calibRef      = useRef<number | null>(null)
+  const phaseRef      = useRef<'scanning' | 'ready'>('scanning')
+  const scaleRatioRef = useRef(1)
 
   // Square crop info (filled once on camera init)
   const cropRef = useRef({ vW: 720, vH: 720, S: 720, cropX: 0, cropY: 0 })
@@ -147,11 +139,10 @@ export default function EyeWearTryOnPage() {
     loadKeyRef.current   = 0
     initRef.current      = false
     busyRef.current      = false
-    scanCountRef.current = 0
+    scanBufRef.current   = []
+    calibRef.current     = null
     scaleRatioRef.current = 1
     phaseRef.current     = 'scanning'
-    smPosX.current = 0; smPosY.current = 0
-    smScale.current = 1; smRoll.current = 0
   }, [])
 
   //  Load / swap glasses model 
@@ -344,7 +335,7 @@ export default function EyeWearTryOnPage() {
         if (occluderRef.current) occluderRef.current.visible = false
         // Reset scan if face lost during scanning
         if (phaseRef.current === 'scanning') {
-          scanCountRef.current = 0
+          scanBufRef.current = []
           if (mountedRef.current) setScanPct(0)
         }
         if (rendererRef.current && sceneRef.current && cameraRef.current)
@@ -361,8 +352,6 @@ export default function EyeWearTryOnPage() {
       // Iris centres
       const liX = px(lms[468] ?? lms[133])
       const riX = px(lms[473] ?? lms[362])
-      const liY = py(lms[468] ?? lms[159])
-      const riY = py(lms[473] ?? lms[386])
 
       // Outer eye corners
       const loX = px(lms[33]),  loY = py(lms[33])
@@ -373,8 +362,8 @@ export default function EyeWearTryOnPage() {
       const riInX = px(lms[362]), riInY = py(lms[362])
 
       // Temple landmarks
-      const ltX = px(lms[127]), ltY = py(lms[127]), ltZ = lms[127].z * cVW
-      const rtX = px(lms[356]), rtY = py(lms[356]), rtZ = lms[356].z * cVW
+      const ltX = px(lms[127]), ltY = py(lms[127])
+      const rtX = px(lms[356]), rtY = py(lms[356])
 
       // Nose bridge + glabella
       const nbY = py(lms[168])
@@ -383,37 +372,27 @@ export default function EyeWearTryOnPage() {
       // Face oval for occluder
       const fEarLX = px(lms[234]), fEarLY = py(lms[234])
       const fEarRX = px(lms[454]), fEarRY = py(lms[454])
-      const fTopY  = py(lms[10]), fTopZ = lms[10].z * cVW
-      const fBotY  = py(lms[152]), fBotZ = lms[152].z * cVW
+      const fTopY  = py(lms[10])
+      const fBotY  = py(lms[152])
 
       //  Measurements 
       const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
-      // Fit slightly wider than temple span to comfortably clear the head width
-      const targetSpanPx = templeSpan * 1.08
-
-      // Stable rotations from full 3D landmarks
-      // Roll: 2D angle between eyes
-      const rollA = Math.atan2(roY - loY, roX - loX)
-      const rollB = Math.atan2(riInY - liInY, riInX - liInX)
-      const rollTarget = (rollA + rollB) / 2
-
-      // Yaw: 3D depth difference between temples
-      const yawTarget = -Math.atan2((rtZ - ltZ), (rtX - ltX)) * 1.2
-      
-      // Pitch: 3D depth difference between forehead and chin
-      const pitchTarget = Math.atan2((fBotZ - fTopZ), (fBotY - fTopY)) - 0.15
-
-      // Position anchor: exact midpoint between outer eye corners
-      const anchorX = (loX + roX) / 2
-      const anchorY = (loY + roY) / 2
+      const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
 
       //  Scanning phase 
       if (phaseRef.current === 'scanning') {
-        scanCountRef.current++
-        const pct = Math.round(Math.min(scanCountRef.current / SCAN_FRAMES, 1) * 100)
+        scanBufRef.current.push({ ts: templeSpan, oe: outerEyeSpan })
+        const pct = Math.round(Math.min(scanBufRef.current.length / SCAN_FRAMES, 1) * 100)
         if (mountedRef.current) setScanPct(pct)
 
-        if (scanCountRef.current >= SCAN_FRAMES) {
+        if (scanBufRef.current.length >= SCAN_FRAMES) {
+          const n   = scanBufRef.current.length
+          const avg = (key: 'ts' | 'oe') => scanBufRef.current.reduce((s, f) => s + f[key], 0) / n
+          const blendedAvg = avg('ts') * 0.7 + avg('oe') * 0.3
+          const baseScale = activeEntryRef.current?.scale || 1
+          scaleRatioRef.current = (baseScale / (modelWRef.current || 1))
+          calibRef.current = scaleRatioRef.current * blendedAvg
+          
           phaseRef.current = 'ready'
           if (mountedRef.current) setStatus('running')
         } else {
@@ -426,15 +405,23 @@ export default function EyeWearTryOnPage() {
         }
       }
 
+      if (!calibRef.current) return
+
+      // Anchor position
+      const anchorX = (liX + riX) / 2
+      const anchorY = (nbY + gbY) / 2
+
+      // Head roll
+      const rollA = Math.atan2(roY - loY, roX - loX)
+      const rollB = Math.atan2(riInY - liInY, riInX - liInX)
+      const rollTarget = (rollA + rollB) / 2
+
       //  Scale 
-      //  Scale 
-      const initScale = activeEntryRef.current?.scale || 1
-      const sf = (targetSpanPx / (modelWRef.current || 1)) * initScale * userScaleRef.current
+      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
+      const sf = scaleRatioRef.current * liveSpan * userScaleRef.current
 
       //  Smoothing 
-      const POS_T   = 0.4
-      const SCALE_T = 0.12
-      const ROT_T   = 0.3
+      const LERP = 0.35
 
       const posX = anchorX - halfW
       const posY = -(anchorY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
@@ -447,43 +434,33 @@ export default function EyeWearTryOnPage() {
         return
       }
 
+      const tPos   = new THREE.Vector3(posX, posY, 0)
+      const tScale = new THREE.Vector3(sf, sf, sf)
+
       if (!glasses.visible) {
         // First frame after scan — snap immediately
-        smPosX.current  = posX
-        smPosY.current  = posY
-        smScale.current = sf
-        smRoll.current  = rollTarget
-        smYaw.current   = yawTarget
-        smPitch.current = pitchTarget
+        glasses.position.copy(tPos)
+        glasses.scale.copy(tScale)
+        glasses.rotation.z = -rollTarget
         glasses.visible = true
       } else {
-        smPosX.current  = lerp(smPosX.current,  posX,        POS_T)
-        smPosY.current  = lerp(smPosY.current,  posY,        POS_T)
-        smScale.current = lerp(smScale.current, sf,          SCALE_T)
-        smRoll.current  = lerp(smRoll.current,  rollTarget,  ROT_T)
-        smYaw.current   = lerp(smYaw.current,   yawTarget,   ROT_T)
-        smPitch.current = lerp(smPitch.current, pitchTarget, ROT_T)
+        glasses.position.lerp(tPos, LERP)
+        glasses.scale.lerp(tScale, LERP)
+        glasses.rotation.z += (-rollTarget - glasses.rotation.z) * LERP
       }
 
       //  Occluder — fully tracks face 3D to accurately mask temples
       if (occluderRef.current) {
-        const scaledTempleDepth = smScale.current * modelDRef.current
+        const scaledTempleDepth = sf * modelDRef.current
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
         const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
         const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
         const faceHH = Math.abs(fBotY - fTopY) * 0.56
-        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.5)
+        occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
         occluderRef.current.scale.set(faceHW, faceHH, 1)
-        // Keep occluder matching head 3D orientation for wrap-around precision
-        occluderRef.current.rotation.set(smPitch.current, smYaw.current, -smRoll.current, 'YXZ')
+        occluderRef.current.rotation.z = -rollTarget
         occluderRef.current.visible = true
       }
-
-      //  Apply to glasses — Full 3D rotation restored using robust FaceMesh depths
-      glasses.position.set(smPosX.current, smPosY.current, 0)
-      glasses.scale.setScalar(smScale.current)
-      // Base orientation is Math.PI (to face camera). Add yaw/pitch for true 3D
-      glasses.rotation.set(smPitch.current, Math.PI + smYaw.current, -smRoll.current, 'YXZ')
 
       // Composite Three.js over video
       if (rendererRef.current && sceneRef.current && cameraRef.current)
@@ -505,7 +482,7 @@ export default function EyeWearTryOnPage() {
     else video.addEventListener('loadeddata', tick, { once: true })
 
     // Start scanning phase
-    scanCountRef.current = 0
+    scanBufRef.current = []
     phaseRef.current = 'scanning'
     if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
 
@@ -530,7 +507,7 @@ export default function EyeWearTryOnPage() {
     if (!sceneRef.current) return
     if (glassesRef.current) glassesRef.current.visible = false
     // Re-scan when swapping models for proper fit
-    scanCountRef.current = 0
+    scanBufRef.current = []
     phaseRef.current = 'scanning'
     if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
     loadGlassesModel(entry).catch(console.error)
@@ -555,7 +532,7 @@ export default function EyeWearTryOnPage() {
 
   //  Rescan 
   const rescan = useCallback(() => {
-    scanCountRef.current = 0
+    scanBufRef.current = []
     phaseRef.current = 'scanning'
     if (glassesRef.current) glassesRef.current.visible = false
     if (mountedRef.current) { setStatus('scanning'); setScanPct(0) }
