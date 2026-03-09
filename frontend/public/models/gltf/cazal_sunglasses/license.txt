@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cazal Sunglasses
+* source:	https://sketchfab.com/3d-models/cazal-sunglasses-3ead5878ad3140d2a5f17ba2c56901b2
+* author:	abdullahyeahyea (https://sketchfab.com/abdullahyeahyea)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cazal Sunglasses" (https://sketchfab.com/3d-models/cazal-sunglasses-3ead5878ad3140d2a5f17ba2c56901b2) by abdullahyeahyea (https://sketchfab.com/abdullahyeahyea) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

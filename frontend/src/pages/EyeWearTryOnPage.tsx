@@ -1,13 +1,18 @@
 /**
- * EyeWearTryOnPage v2 — Snapchat-style fullscreen AR try-on
+ * EyeWearTryOnPage v3 — Snapchat-style fullscreen AR try-on
  *
- * KEY FIXES (v2):
- *  1. Square camera viewport — centre-cropped from camera feed, black letterbox
- *  2. Face scanning phase (30 frames) — glasses only appear after stable detection
- *  3. Roll-only rotation — NO yaw/pitch (which was causing "revolving around face")
- *     Real Snapchat/TikTok filters track position + scale + roll only
- *  4. Non-blocking capture — uses toBlob() instead of synchronous toDataURL()
- *  5. Proportional occluder z — temples clip consistently at any face distance
+ * Based on bensonruan/Virtual-Glasses-Try-on reference approach:
+ *   Key landmarks: 168 (midEye), 143 (leftEye), 2 (noseBottom), 372 (rightEye)
+ *
+ * KEY FIXES (v3):
+ *  1. Square camera viewport — centre-cropped from camera feed
+ *  2. Face scanning phase (30 frames) — glasses appear after stable detection
+ *  3. Roll-only rotation derived from up-vector (midEye→noseBottom)
+ *     — NO yaw/pitch (which was causing "revolving around face" in v1)
+ *  4. Scale from leftEye↔rightEye distance (landmarks 143↔372)
+ *  5. Position anchored at landmark 168 (nose bridge / midEye)
+ *  6. Non-blocking capture — uses toBlob()
+ *  7. Proportional depth occluder for temple arm clipping
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -17,12 +22,14 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FaceMesh } from '@mediapipe/face_mesh'
 
-//  Glasses catalogue 
+//  Glasses catalogue (GLTF models)
 const GLASSES_CATALOGUE = [
-  { id: 'glasses-7b',  name: 'Wayfarer',     modelPath: '/models/glasses-7b.glb',  offsetY: 0, scale: 1.0 },
-  { id: 'glasses1',    name: 'Aviator',      modelPath: '/models/glasses1.glb',    offsetY: 0, scale: 1.0 },
-  { id: 'glasses-9c',  name: 'Retro Square', modelPath: '/models/glasses-9c.glb',  offsetY: 0, scale: 1.0 },
-  { id: 'sunglasses',  name: 'Classic',      modelPath: '/models/sunglasses.glb',  offsetY: 0, scale: 1.0 },
+  { id: 'cartoon_glasses',     name: 'Cartoon',       modelPath: '/models/gltf/cartoon_glasses/scene.gltf',     offsetY: 0, scale: 1.0 },
+  { id: 'cazal_sunglasses',    name: 'Cazal',         modelPath: '/models/gltf/cazal_sunglasses/scene.gltf',    offsetY: 0, scale: 1.0 },
+  { id: 'glasses1',            name: 'Classic',       modelPath: '/models/gltf/glasses1/scene.gltf',            offsetY: 0, scale: 1.0 },
+  { id: 'glasses_07',          name: 'Glasses 07',    modelPath: '/models/gltf/glasses_07/scene.gltf',          offsetY: 0, scale: 1.0 },
+  { id: 'plastic_sunglasses',  name: 'Plastic',       modelPath: '/models/gltf/plastic_sunglasses/scene.gltf',  offsetY: 0, scale: 1.0 },
+  { id: 'sport_glasses_b307',  name: 'Sport',         modelPath: '/models/gltf/sport_glasses_b307/scene.gltf',  offsetY: 0, scale: 1.0 },
 ]
 
 type GlassesEntry = typeof GLASSES_CATALOGUE[0]
@@ -30,13 +37,22 @@ const SCAN_FRAMES = 30
 
 // Module-level carousel icons (never recreated)
 const CAROUSEL_ICONS: Record<string, JSX.Element> = {
-  'glasses-7b': (
-    <svg viewBox="0 0 64 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-      <rect x="2" y="4" width="27" height="18" rx="3" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-      <rect x="35" y="4" width="27" height="18" rx="3" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-      <path d="M29 13 Q32 10 35 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M2 13 L0 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M62 13 L64 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  'cartoon_glasses': (
+    <svg viewBox="0 0 64 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+      <ellipse cx="16" cy="15" rx="14" ry="11" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <ellipse cx="48" cy="15" rx="14" ry="11" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <path d="M30 12 Q32 8 34 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M2 10 L0 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M62 10 L64 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  'cazal_sunglasses': (
+    <svg viewBox="0 0 68 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+      <ellipse cx="17" cy="13" rx="15" ry="10" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <ellipse cx="51" cy="13" rx="15" ry="10" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <path d="M32 10 Q34 8 36 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M2 10 L0 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M66 10 L68 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   ),
   'glasses1': (
@@ -48,7 +64,16 @@ const CAROUSEL_ICONS: Record<string, JSX.Element> = {
       <path d="M62 8 L64 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   ),
-  'glasses-9c': (
+  'glasses_07': (
+    <svg viewBox="0 0 64 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+      <rect x="2" y="4" width="27" height="18" rx="3" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <rect x="35" y="4" width="27" height="18" rx="3" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
+      <path d="M29 13 Q32 10 35 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M2 13 L0 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M62 13 L64 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  'plastic_sunglasses': (
     <svg viewBox="0 0 64 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
       <rect x="2" y="5" width="27" height="16" rx="2" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
       <rect x="35" y="5" width="27" height="16" rx="2" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
@@ -57,13 +82,12 @@ const CAROUSEL_ICONS: Record<string, JSX.Element> = {
       <path d="M62 13 L64 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   ),
-  'sunglasses': (
-    <svg viewBox="0 0 68 26" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-      <ellipse cx="17" cy="13" rx="15" ry="10" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-      <ellipse cx="51" cy="13" rx="15" ry="10" stroke="currentColor" strokeWidth="2.5" fill="rgba(255,255,255,0.08)"/>
-      <path d="M32 10 Q34 8 36 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M2 10 L0 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M66 10 L68 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  'sport_glasses_b307': (
+    <svg viewBox="0 0 68 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+      <path d="M2 12 C2 6 8 2 18 4 L30 8 Q34 6 38 8 L50 4 C60 2 66 6 66 12 C66 18 58 22 48 18 L38 14 Q34 16 30 14 L20 18 C10 22 2 18 2 12Z"
+        stroke="currentColor" strokeWidth="2" fill="rgba(255,255,255,0.08)"/>
+      <path d="M2 12 L0 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M66 12 L68 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   ),
 }
@@ -166,8 +190,8 @@ export default function EyeWearTryOnPage() {
     modelWRef.current = size.x
     modelDRef.current = size.z || size.x * 0.4
 
-    // Keep original model orientation
-    model.rotation.y = 0
+    // Keep original model orientation facing forward (Math.PI flips it to +Z so temples go backwards)
+    model.rotation.y = Math.PI
 
     // Material pass
     model.traverse((child: any) => {
@@ -345,29 +369,17 @@ export default function EyeWearTryOnPage() {
       }
       if (mountedRef.current) setFaceLive(true)
 
-      //  Landmark pixel positions (mapped to cropped square) 
+      // ── Landmark pixel positions (mapped to cropped square) ─────────
+      // Reference landmarks from bensonruan/Virtual-Glasses-Try-on:
+      //   168 = midEye (nose bridge), 143 = leftEye, 2 = noseBottom, 372 = rightEye
       const px = (l: { x: number }) => (l.x * cVW - cCropX) * (W / cS)
       const py = (l: { y: number }) => (l.y * cVH - cCropY) * (H / cS)
 
-      // Iris centres
-      const liX = px(lms[468] ?? lms[133])
-      const riX = px(lms[473] ?? lms[362])
-
-      // Outer eye corners
-      const loX = px(lms[33]),  loY = py(lms[33])
-      const roX = px(lms[263]), roY = py(lms[263])
-
-      // Inner eye corners (roll stability)
-      const liInX = px(lms[133]), liInY = py(lms[133])
-      const riInX = px(lms[362]), riInY = py(lms[362])
-
-      // Temple landmarks
-      const ltX = px(lms[127]), ltY = py(lms[127])
-      const rtX = px(lms[356]), rtY = py(lms[356])
-
-      // Nose bridge + glabella
-      const nbY = py(lms[168])
-      const gbY = py(lms[6])
+      // Key face landmarks (matching reference repo)
+      const midEyeX = px(lms[168]), midEyeY = py(lms[168])
+      const leftEyeX = px(lms[143]), leftEyeY = py(lms[143])
+      const rightEyeX = px(lms[372]), rightEyeY = py(lms[372])
+      const noseBottomX = px(lms[2]), noseBottomY = py(lms[2])
 
       // Face oval for occluder
       const fEarLX = px(lms[234]), fEarLY = py(lms[234])
@@ -375,23 +387,22 @@ export default function EyeWearTryOnPage() {
       const fTopY  = py(lms[10])
       const fBotY  = py(lms[152])
 
-      //  Measurements 
-      const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
-      const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
+      // ── Eye distance — primary scale measurement (reference approach) ──
+      const eyeDist = Math.sqrt(
+        (leftEyeX - rightEyeX) ** 2 +
+        (leftEyeY - rightEyeY) ** 2
+      )
 
-      //  Scanning phase 
+      // ── Scanning phase ─────────────────────────────────────────────────
       if (phaseRef.current === 'scanning') {
-        scanBufRef.current.push({ ts: templeSpan, oe: outerEyeSpan })
+        scanBufRef.current.push({ ts: eyeDist, oe: eyeDist })
         const pct = Math.round(Math.min(scanBufRef.current.length / SCAN_FRAMES, 1) * 100)
         if (mountedRef.current) setScanPct(pct)
 
         if (scanBufRef.current.length >= SCAN_FRAMES) {
-          const n   = scanBufRef.current.length
-          const avg = (key: 'ts' | 'oe') => scanBufRef.current.reduce((s, f) => s + f[key], 0) / n
-          const blendedAvg = avg('ts') * 0.7 + avg('oe') * 0.3
           const baseScale = activeEntryRef.current?.scale || 1
           scaleRatioRef.current = (baseScale / (modelWRef.current || 1))
-          calibRef.current = scaleRatioRef.current * blendedAvg
+          calibRef.current = scaleRatioRef.current * eyeDist
           
           phaseRef.current = 'ready'
           if (mountedRef.current) setStatus('running')
@@ -407,24 +418,29 @@ export default function EyeWearTryOnPage() {
 
       if (!calibRef.current) return
 
-      // Anchor position
-      const anchorX = (liX + riX) / 2
-      const anchorY = (nbY + gbY) / 2
+      // ── Up vector (midEye → noseBottom) — head tilt detection ─────────
+      // Reference: glasses.up = normalize(midEye - noseBottom)
+      // In canvas coords Y increases downward; Three.js Y increases upward → negate Y
+      let upX = midEyeX - noseBottomX
+      let upY = -(midEyeY - noseBottomY)
+      const upLen = Math.sqrt(upX ** 2 + upY ** 2) || 1
+      upX /= upLen
+      upY /= upLen
 
-      // Head roll
-      const rollA = Math.atan2(roY - loY, roX - loX)
-      const rollB = Math.atan2(riInY - liInY, riInX - liInX)
-      const rollTarget = (rollA + rollB) / 2
+      // ── Roll from up vector (reference approach) ───────────────────────
+      // When head is upright, upX ≈ 0 → acos(0) = π/2 → roll = 0
+      // Tilting head right → upX > 0 → acos(upX) < π/2 → positive roll
+      const roll = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, upX)))
 
-      //  Scale 
-      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
-      const sf = scaleRatioRef.current * liveSpan * userScaleRef.current
+      // ── Position at midEye (landmark 168) ──────────────────────────────
+      const posX = midEyeX - halfW
+      const posY = -(midEyeY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
 
-      //  Smoothing 
+      // ── Scale from live eye distance ───────────────────────────────────
+      const sf = scaleRatioRef.current * eyeDist * userScaleRef.current
+
+      // ── Smoothing ──────────────────────────────────────────────────────
       const LERP = 0.35
-
-      const posX = anchorX - halfW
-      const posY = -(anchorY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
 
       const glasses = glassesRef.current
       if (!glasses) {
@@ -441,24 +457,25 @@ export default function EyeWearTryOnPage() {
         // First frame after scan — snap immediately
         glasses.position.copy(tPos)
         glasses.scale.copy(tScale)
-        glasses.rotation.z = -rollTarget
+        glasses.rotation.z = -roll
         glasses.visible = true
       } else {
         glasses.position.lerp(tPos, LERP)
         glasses.scale.lerp(tScale, LERP)
-        glasses.rotation.z += (-rollTarget - glasses.rotation.z) * LERP
+        glasses.rotation.z += (-roll - glasses.rotation.z) * LERP
       }
 
-      //  Occluder — fully tracks face 3D to accurately mask temples
+      // ── Occluder — depth-only face ellipse (roll-only, no yaw/pitch) ──
       if (occluderRef.current) {
         const scaledTempleDepth = sf * modelDRef.current
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
         const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
         const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
         const faceHH = Math.abs(fBotY - fTopY) * 0.56
+        
         occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
         occluderRef.current.scale.set(faceHW, faceHH, 1)
-        occluderRef.current.rotation.z = -rollTarget
+        occluderRef.current.rotation.z = -roll
         occluderRef.current.visible = true
       }
 

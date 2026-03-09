@@ -228,9 +228,8 @@ export default function ARTryOnPage() {
       modelDRef.current = size.z || size.x * 0.4  // fallback depth estimate
       console.log('[AR] model w:', size.x.toFixed(4), 'h:', size.y.toFixed(4), 'd:', size.z.toFixed(4))
 
-      // Keep original model orientation - do not flip 180 degrees.
-      // Temples should extend backward (-Z), front should face forward (+Z).
-      model.rotation.y = 0
+      // Face the camera (+Z direction).  Most glasses GLBs face -Z by default.
+      model.rotation.y = Math.PI
 
       // Material pass
       model.traverse((child: any) => {
@@ -315,31 +314,16 @@ export default function ARTryOnPage() {
       setFaceLive(true)
 
       // ── Landmark extraction — raw pixel coords (NO 1-lm.x flip) ───────
-      // lm.x and lm.y are in [0,1], normalised by image W and H.
-      // We multiply directly — no mirror inversion required because the
-      // CSS transform on the canvas handles the visual mirror.
+      // Reference landmarks from bensonruan/Virtual-Glasses-Try-on:
+      //   168 = midEye (nose bridge), 143 = leftEye, 2 = noseBottom, 372 = rightEye
       const px = (l: { x: number }) => l.x * W
       const py = (l: { y: number }) => l.y * H
 
-      // Iris centres (refineLandmarks=true) — only X needed; Y anchor comes from nose/glabella
-      const liX = px(lms[468] ?? lms[133])
-      const riX = px(lms[473] ?? lms[362])
-
-      // Outer eye corners (roll + span)
-      const loX = px(lms[33]),  loY = py(lms[33])
-      const roX = px(lms[263]), roY = py(lms[263])
-
-      // Inner eye corners (roll stability)
-      const liInX = px(lms[133]), liInY = py(lms[133])
-      const riInX = px(lms[362]), riInY = py(lms[362])
-
-      // Nose bridge (168) and glabella (6) for Y anchor
-      const nbY = py(lms[168])
-      const gbY = py(lms[6])
-
-      // Temple landmarks (127 left, 356 right) — true glasses width span
-      const ltX = px(lms[127]), ltY = py(lms[127])
-      const rtX = px(lms[356]), rtY = py(lms[356])
+      // Key face landmarks (matching reference repo)
+      const midEyeX = px(lms[168]), midEyeY = py(lms[168])
+      const leftEyeX = px(lms[143]), leftEyeY = py(lms[143])
+      const rightEyeX = px(lms[372]), rightEyeY = py(lms[372])
+      const noseBottomX = px(lms[2]), noseBottomY = py(lms[2])
 
       // Face oval landmarks for occluder
       // 234 = left cheek/ear edge,  454 = right cheek/ear edge
@@ -349,28 +333,24 @@ export default function ARTryOnPage() {
       const fTopY  = py(lms[10])
       const fBotY  = py(lms[152])
 
-      // ── Face measurements ───────────────────────────────────────────────
-      const templeSpan   = Math.hypot(rtX - ltX, rtY - ltY)
-      const outerEyeSpan = Math.hypot(roX - loX, roY - loY)
+      // ── Eye distance — primary scale measurement (reference approach) ──
+      const eyeDist = Math.sqrt(
+        (leftEyeX - rightEyeX) ** 2 +
+        (leftEyeY - rightEyeY) ** 2
+      )
 
       // ── Calibration scan ────────────────────────────────────────────────
       if (phaseRef.current === 'scanning') {
-        scanBufRef.current.push({ ts: templeSpan, oe: outerEyeSpan })
+        scanBufRef.current.push({ ts: eyeDist, oe: eyeDist })
         const pct = Math.round(Math.min(scanBufRef.current.length / SCAN_FRAMES, 1) * 100)
         setScanPct(pct)
 
         if (scanBufRef.current.length >= SCAN_FRAMES) {
-          const n   = scanBufRef.current.length
-          const avg = (key: 'ts' | 'oe') => scanBufRef.current.reduce((s, f) => s + f[key], 0) / n
-          // Store the pixel-span → scene-unit conversion ratio.
-          // scaleRatioRef encodes:   (product.scale / modelNativeWidth)
-          // Every frame: sf = scaleRatioRef * liveSpan   → glasses resize with face automatically.
-          const blendedAvg = avg('ts') * 0.7 + avg('oe') * 0.3
           scaleRatioRef.current = (product.scale / modelWRef.current)
-          calibRef.current = scaleRatioRef.current * blendedAvg  // initial scale (for first frame)
+          calibRef.current = scaleRatioRef.current * eyeDist
           console.log('[AR] calibrated ratio:', scaleRatioRef.current.toFixed(4),
             ' initial scale:', calibRef.current.toFixed(3),
-            ' temple px:', avg('ts').toFixed(1))
+            ' eyeDist px:', eyeDist.toFixed(1))
           phaseRef.current = 'done'
           setStatus('running')
         }
@@ -386,42 +366,33 @@ export default function ARTryOnPage() {
 
       if (!calibRef.current) return   // safety guard
 
-      // ── Anchor position ─────────────────────────────────────────────────
-      // X = midpoint of iris centres (true optical axis)
-      // Y = average nose-bridge + glabella (stable, resists brow movement)
-      const anchorX = (liX + riX) / 2
-      const anchorY = (nbY + gbY) / 2
+      // ── Up vector (midEye → noseBottom) — head tilt detection ─────────
+      // Reference: glasses.up = normalize(midEye - noseBottom)
+      // Canvas Y goes top→down; Three.js Y goes bottom→up → negate Y delta
+      let upX = midEyeX - noseBottomX
+      let upY = -(midEyeY - noseBottomY)
+      const upLen = Math.sqrt(upX ** 2 + upY ** 2) || 1
+      upX /= upLen
+      upY /= upLen
 
-      // ── Head roll ───────────────────────────────────────────────────────
-      // Average outer + inner corner vectors for jitter reduction
-      const rollA = Math.atan2(roY - loY, roX - loX)
-      const rollB = Math.atan2(riInY - liInY, riInX - liInX)
-      const roll  = (rollA + rollB) / 2
+      // ── Roll from up vector (reference approach) ───────────────────────
+      // When head is upright: upX ≈ 0 → acos(0)=π/2 → roll=0
+      const roll = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, upX)))
 
-      // ── Three.js orthographic coords ────────────────────────────────────
+      // ── Position at midEye (landmark 168) ──────────────────────────────
       // Canvas centre = origin,  +x right,  +y UP
-      const posX = anchorX - halfW
-      const posY = -(anchorY - halfH) + product.offsetY
+      const posX = midEyeX - halfW
+      const posY = -(midEyeY - halfH) + product.offsetY
 
-      // ── Compute scale FIRST — needed by both occluder and glasses ────
-      const liveSpan = templeSpan * 0.7 + outerEyeSpan * 0.3
+      // ── Scale from live eye distance ───────────────────────────────────
       const LERP    = 0.35
-      const sf      = scaleRatioRef.current * liveSpan * userScaleRef.current
+      const sf      = scaleRatioRef.current * eyeDist * userScaleRef.current
 
       // ── Face depth occluder — z scales with glasses ───────────────────
-      // The occluder is a depth-only ellipse whose z-position is proportional
-      // to the current glasses scale.  This keeps the same fraction of temple
-      // arm visible regardless of how close/far the user is from the camera.
-      //   sf * modelDRef = total temple depth in scene units at current scale
-      //   × 0.65 → clip the rear 35% of temples (behind-the-ear portion)
       if (occluderRef.current) {
         const scaledTempleDepth = sf * modelDRef.current
-
-        // Face centre in ortho coords
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
         const faceCY = -((fEarLY + fEarRY) / 2 - halfH)
-
-        // Half-widths of the face oval — add 15% padding so ears are fully covered
         const faceHW = Math.hypot(fEarRX - fEarLX, fEarRY - fEarLY) * 0.58
         const faceHH = Math.abs(fBotY - fTopY) * 0.56
 
@@ -486,18 +457,13 @@ export default function ARTryOnPage() {
   const capture = useCallback(() => {
     const src = canvasRef.current
     if (!src) return
-    requestAnimationFrame(() => {
-      const tmp  = document.createElement('canvas')
-      tmp.width  = src.width
-      tmp.height = src.height
-      const tc   = tmp.getContext('2d')!
-      tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to the export
-      tc.drawImage(src, 0, 0)
-      tmp.toBlob((blob) => {
-        if (!blob) return
-        setCaptured(URL.createObjectURL(blob))
-      }, 'image/png')
-    })
+    const tmp  = document.createElement('canvas')
+    tmp.width  = src.width
+    tmp.height = src.height
+    const tc   = tmp.getContext('2d')!
+    tc.translate(src.width, 0); tc.scale(-1, 1)   // apply the CSS mirror to the export
+    tc.drawImage(src, 0, 0)
+    setCaptured(tmp.toDataURL('image/png'))
   }, [])
 
   // ─── Rescan ───────────────────────────────────────────────────────────────
