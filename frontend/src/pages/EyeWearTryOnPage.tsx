@@ -13,8 +13,6 @@
  *  5. Position anchored at landmark 168 (nose bridge / midEye)
  *  6. Non-blocking capture — uses toBlob()
  *  7. Proportional depth occluder for temple arm clipping
- *  8. NO universal rotation.y = Math.PI — our camera is at +Z (reference is at -Z)
- *     Each model gets per-model rotationY (default 0) if needed
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -105,7 +103,7 @@ export default function EyeWearTryOnPage() {
 
   // Three.js refs
   const sceneRef     = useRef<THREE.Scene | null>(null)
-  const cameraRef    = useRef<THREE.PerspectiveCamera | null>(null)
+  const cameraRef    = useRef<THREE.OrthographicCamera | null>(null)
   const rendererRef  = useRef<THREE.WebGLRenderer | null>(null)
   const offscreenRef = useRef<HTMLCanvasElement | null>(null)
   const glassesRef   = useRef<THREE.Group | null>(null)
@@ -123,7 +121,6 @@ export default function EyeWearTryOnPage() {
   const calibRef      = useRef<number | null>(null)
   const phaseRef      = useRef<'scanning' | 'ready'>('scanning')
   const scaleRatioRef = useRef(1)
-  const prevPosRef    = useRef<THREE.Vector3 | null>(null) // for velocity-adaptive smoothing
 
   // Square crop info (filled once on camera init)
   const cropRef = useRef({ vW: 720, vH: 720, S: 720, cropX: 0, cropY: 0 })
@@ -169,7 +166,6 @@ export default function EyeWearTryOnPage() {
     scanBufRef.current   = []
     calibRef.current     = null
     scaleRatioRef.current = 1
-    prevPosRef.current   = null
     phaseRef.current     = 'scanning'
   }, [])
 
@@ -188,19 +184,15 @@ export default function EyeWearTryOnPage() {
     const model  = gltf.scene
     const box    = new THREE.Box3().setFromObject(model)
     const size   = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
 
+    model.position.set(-center.x, -center.y, -center.z)
     modelWRef.current = size.x
     modelDRef.current = size.z || size.x * 0.4
 
     // Per-model Y rotation (default 0). Our camera is at +Z looking at origin,
-    // so models facing +Z are already correct. Set rotationY: Math.PI only if
-    // a specific model faces the wrong way.
+    // so models facing +Z are already correct. Only override if a model faces wrong way.
     model.rotation.y = entry.rotationY ?? 0
-
-    // Re-center AFTER rotation so the offset accounts for rotated geometry
-    const rotatedBox = new THREE.Box3().setFromObject(model)
-    const rotatedCenter = rotatedBox.getCenter(new THREE.Vector3())
-    model.position.set(-rotatedCenter.x, -rotatedCenter.y, -rotatedCenter.z)
 
     // Material pass
     model.traverse((child: any) => {
@@ -287,15 +279,12 @@ export default function EyeWearTryOnPage() {
     canvas.height = S
     const W = S, H = S, halfW = W / 2, halfH = H / 2
 
-    //  Three.js perspective camera (matching reference repo approach)
-    //  Camera distance calibrated so z=0 plane maps 1:1 to pixels
+    //  Three.js orthographic (1 unit = 1 px) 
     const scene = new THREE.Scene()
     sceneRef.current = scene
 
-    const CAM_FOV = 45
-    const camDist = halfH / Math.tan((CAM_FOV * Math.PI / 180) / 2)
-    const cam = new THREE.PerspectiveCamera(CAM_FOV, W / H, 0.1, camDist * 4)
-    cam.position.set(0, 0, camDist)
+    const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 1, 4000)
+    cam.position.set(0, 0, 1000)
     cam.lookAt(0, 0, 0)
     cameraRef.current = cam
 
@@ -384,34 +373,26 @@ export default function EyeWearTryOnPage() {
       // ── Landmark pixel positions (mapped to cropped square) ─────────
       // Reference landmarks from bensonruan/Virtual-Glasses-Try-on:
       //   168 = midEye (nose bridge), 143 = leftEye, 2 = noseBottom, 372 = rightEye
-      //   234 = right ear (temple tip target), 454 = left ear (temple tip target)
       const px = (l: { x: number }) => (l.x * cVW - cCropX) * (W / cS)
       const py = (l: { y: number }) => (l.y * cVH - cCropY) * (H / cS)
-      const pz = (l: { z: number }) => l.z * W  // Z depth scaled to pixel space
 
-      // Key face landmarks (matching reference repo — including Z depth)
-      const midEyeX = px(lms[168]), midEyeY = py(lms[168]), midEyeZ = pz(lms[168])
-      const leftEyeX = px(lms[143]), leftEyeY = py(lms[143]), leftEyeZ = pz(lms[143])
-      const rightEyeX = px(lms[372]), rightEyeY = py(lms[372]), rightEyeZ = pz(lms[372])
-      const noseBottomX = px(lms[2]), noseBottomY = py(lms[2]), noseBottomZ = pz(lms[2])
+      // Key face landmarks (matching reference repo)
+      const midEyeX = px(lms[168]), midEyeY = py(lms[168])
+      const leftEyeX = px(lms[143]), leftEyeY = py(lms[143])
+      const rightEyeX = px(lms[372]), rightEyeY = py(lms[372])
+      const noseBottomX = px(lms[2]), noseBottomY = py(lms[2])
 
-      // Ear landmarks — where temple arms should visually aim toward
+      // Face oval for occluder
       const fEarLX = px(lms[234]), fEarLY = py(lms[234])
       const fEarRX = px(lms[454]), fEarRY = py(lms[454])
       const fTopY  = py(lms[10])
       const fBotY  = py(lms[152])
 
-      // ── Eye distance — 3D measurement including Z depth (reference approach) ──
+      // ── Eye distance — primary scale measurement (reference approach) ──
       const eyeDist = Math.sqrt(
         (leftEyeX - rightEyeX) ** 2 +
-        (leftEyeY - rightEyeY) ** 2 +
-        (leftEyeZ - rightEyeZ) ** 2
+        (leftEyeY - rightEyeY) ** 2
       )
-
-      // ── Stable anchor: midpoint of eyes 143 & 372 (more stable than 168 alone) ─
-      const anchorX = (leftEyeX + rightEyeX) / 2
-      const anchorY = (leftEyeY + rightEyeY) / 2
-      const anchorZ = (leftEyeZ + rightEyeZ) / 2
 
       // ── Scanning phase ─────────────────────────────────────────────────
       if (phaseRef.current === 'scanning') {
@@ -420,13 +401,9 @@ export default function EyeWearTryOnPage() {
         if (mountedRef.current) setScanPct(pct)
 
         if (scanBufRef.current.length >= SCAN_FRAMES) {
-          // Use median eye distance from scan samples for robust calibration
-          const sorted = scanBufRef.current.map(s => s.oe).sort((a, b) => a - b)
-          const medianEyeDist = sorted[Math.floor(sorted.length / 2)]
           const baseScale = activeEntryRef.current?.scale || 1
           scaleRatioRef.current = (baseScale / (modelWRef.current || 1))
-          calibRef.current = scaleRatioRef.current * medianEyeDist
-          prevPosRef.current = null // reset velocity tracker
+          calibRef.current = scaleRatioRef.current * eyeDist
           
           phaseRef.current = 'ready'
           if (mountedRef.current) setStatus('running')
@@ -442,61 +419,29 @@ export default function EyeWearTryOnPage() {
 
       if (!calibRef.current) return
 
-      // ── Face 3D coordinate frame from landmarks ───────────────────────
-      // Build a full 3D rotation (yaw + pitch + roll) so glasses stay
-      // locked to the face when the head turns or tilts in any direction.
-      //
-      // X-axis (right): leftEye(143) → rightEye(372)
-      // Y-axis (up):    noseBottom(2) → midEye(168)
-      // Z-axis (fwd):   cross(X, Y) — face normal
-      //
-      // Canvas Y increases downward; Three.js Y increases upward → negate Y
+      // ── Up vector (midEye → noseBottom) — head tilt detection ─────────
+      // Reference: glasses.up = normalize(midEye - noseBottom)
+      // In canvas coords Y increases downward; Three.js Y increases upward → negate Y
+      let upX = midEyeX - noseBottomX
+      let upY = -(midEyeY - noseBottomY)
+      const upLen = Math.sqrt(upX ** 2 + upY ** 2) || 1
+      upX /= upLen
+      upY /= upLen
 
-      // X-axis: eye-to-eye vector
-      const rVec = new THREE.Vector3(
-        rightEyeX - leftEyeX,
-        -(rightEyeY - leftEyeY),
-        rightEyeZ - leftEyeZ
-      ).normalize()
+      // ── Roll from up vector (reference approach) ───────────────────────
+      // When head is upright, upX ≈ 0 → acos(0) = π/2 → roll = 0
+      // Tilting head right → upX > 0 → acos(upX) < π/2 → positive roll
+      const roll = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, upX)))
 
-      // Y-axis: nose-bottom → mid-eye (up direction)
-      const uVec = new THREE.Vector3(
-        midEyeX - noseBottomX,
-        -(midEyeY - noseBottomY),
-        midEyeZ - noseBottomZ
-      ).normalize()
-
-      // Z-axis: cross(X, Y) = face forward
-      const fVec = new THREE.Vector3().crossVectors(rVec, uVec).normalize()
-
-      // Re-orthogonalize Y = cross(Z, X) to ensure perfect right-angle frame
-      uVec.crossVectors(fVec, rVec).normalize()
-
-      // Build rotation quaternion from the face basis
-      const rotMat = new THREE.Matrix4().makeBasis(rVec, uVec, fVec)
-      const targetQuat = new THREE.Quaternion().setFromRotationMatrix(rotMat)
-
-      // ── Position at eye center (midpoint of 143 & 372) with Z-depth ────
-      // Using the actual eye midpoint is more stable than landmark 168 alone
-      const posX = anchorX - halfW
-      const posY = -(anchorY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
-      const posZ = anchorZ  // Z-depth from eye center
+      // ── Position at midEye (landmark 168) ──────────────────────────────
+      const posX = midEyeX - halfW
+      const posY = -(midEyeY - halfH) + (activeEntryRef.current?.offsetY ?? 0)
 
       // ── Scale from live eye distance ───────────────────────────────────
       const sf = scaleRatioRef.current * eyeDist * userScaleRef.current
 
-      // ── Velocity-adaptive smoothing ────────────────────────────────────
-      // Fast movement → high LERP (snappy); slow/still → lower LERP (stable)
-      const tPos = new THREE.Vector3(posX, posY, posZ)
-      let LERP = 0.6 // base: much tighter than previous 0.35
-      if (prevPosRef.current) {
-        const vel = tPos.distanceTo(prevPosRef.current)
-        // When velocity > ~5px/frame, snap almost instantly
-        // When still, use base smoothing for stability
-        const velFactor = Math.min(vel / 8, 1) // 0→1 mapped from 0→8px
-        LERP = 0.6 + velFactor * 0.35 // range: 0.6 → 0.95
-      }
-      prevPosRef.current = tPos.clone()
+      // ── Smoothing ──────────────────────────────────────────────────────
+      const LERP = 0.35
 
       const glasses = glassesRef.current
       if (!glasses) {
@@ -506,21 +451,22 @@ export default function EyeWearTryOnPage() {
         return
       }
 
+      const tPos   = new THREE.Vector3(posX, posY, 0)
       const tScale = new THREE.Vector3(sf, sf, sf)
 
       if (!glasses.visible) {
         // First frame after scan — snap immediately
         glasses.position.copy(tPos)
         glasses.scale.copy(tScale)
-        glasses.quaternion.copy(targetQuat)
+        glasses.rotation.z = -roll
         glasses.visible = true
       } else {
         glasses.position.lerp(tPos, LERP)
         glasses.scale.lerp(tScale, LERP)
-        glasses.quaternion.slerp(targetQuat, LERP)
+        glasses.rotation.z += (-roll - glasses.rotation.z) * LERP
       }
 
-      // ── Occluder — depth-only face ellipse (tracks full rotation) ─────
+      // ── Occluder — depth-only face ellipse (roll-only, no yaw/pitch) ──
       if (occluderRef.current) {
         const scaledTempleDepth = sf * modelDRef.current
         const faceCX = (fEarLX + fEarRX) / 2 - halfW
@@ -530,7 +476,7 @@ export default function EyeWearTryOnPage() {
         
         occluderRef.current.position.set(faceCX, faceCY, -scaledTempleDepth * 0.65)
         occluderRef.current.scale.set(faceHW, faceHH, 1)
-        occluderRef.current.quaternion.copy(glasses.quaternion)
+        occluderRef.current.rotation.z = -roll
         occluderRef.current.visible = true
       }
 
