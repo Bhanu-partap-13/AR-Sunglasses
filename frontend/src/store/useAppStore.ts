@@ -28,7 +28,7 @@ interface AppState {
 }
 
 const initialCustomization: CustomizationState = {
-  selectedModel: '/models/glasses1.glb',
+  selectedModel: '/models/glb/glasses1.glb',
   selectedFrameColor: 0,
   selectedLensTint: 0,
   selectedEnvironment: 0,

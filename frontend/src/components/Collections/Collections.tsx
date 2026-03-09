@@ -12,7 +12,7 @@ const products = [
     collection: 'Classic',
     price: '$899',
     material: 'Titanium',
-    modelPath: '/models/glasses1.glb',
+    modelPath: '/models/glb/glasses1.glb',
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'large'
   },
@@ -23,7 +23,7 @@ const products = [
     collection: 'Modern',
     price: '$1,299',
     material: 'Carbon Fiber',
-    modelPath: '/models/glasses-8b.glb',
+    modelPath: '/models/glb/glasses-8b.glb',
     image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
@@ -34,7 +34,7 @@ const products = [
     collection: 'Vintage',
     price: '$799',
     material: 'Acetate',
-    modelPath: '/models/glasses-8c.glb',
+    modelPath: '/models/glb/glasses-8c.glb',
     image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'large'
   },
@@ -45,7 +45,7 @@ const products = [
     collection: 'Sport',
     price: '$1,099',
     material: 'Aluminum',
-    modelPath: '/models/glasses6.glb',
+    modelPath: '/models/glb/glasses6.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
@@ -56,7 +56,7 @@ const products = [
     collection: 'Classic',
     price: '$1,499',
     material: 'Gold Plated',
-    modelPath: '/models/glasses-7b.glb',
+    modelPath: '/models/glb/glasses-7b.glb',
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'regular'
   },
@@ -67,7 +67,7 @@ const products = [
     collection: 'Modern',
     price: '$999',
     material: 'Acetate',
-    modelPath: '/models/glasses-7c.glb',
+    modelPath: '/models/glb/glasses-7c.glb',
     image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'large'
   },
@@ -78,7 +78,7 @@ const products = [
     collection: 'Sport',
     price: '$1,199',
     material: 'Polycarbonate',
-    modelPath: '/models/glasses-9b.glb',
+    modelPath: '/models/glb/glasses-9b.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
@@ -89,7 +89,7 @@ const products = [
     collection: 'Vintage',
     price: '$849',
     material: 'Horn',
-    modelPath: '/models/glasses-9c.glb',
+    modelPath: '/models/glb/glasses-9c.glb',
     image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'regular'
   },
@@ -100,7 +100,7 @@ const products = [
     collection: 'Classic',
     price: '$749',
     material: 'Titanium',
-    modelPath: '/models/glasses5.glb',
+    modelPath: '/models/glb/glasses5.glb',
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'large'
   },
@@ -111,7 +111,7 @@ const products = [
     collection: 'Vintage',
     price: '$699',
     material: 'Acetate',
-    modelPath: '/models/glasses3.glb',
+    modelPath: '/models/glb/glasses3.glb',
     image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
@@ -122,7 +122,7 @@ const products = [
     collection: 'Modern',
     price: '$1,349',
     material: 'Carbon Fiber',
-    modelPath: '/models/glasses4.glb',
+    modelPath: '/models/glb/glasses4.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
@@ -133,7 +133,7 @@ const products = [
     collection: 'Sport',
     price: '$899',
     material: 'Polycarbonate',
-    modelPath: '/models/glasses-5b.glb',
+    modelPath: '/models/glb/glasses-5b.glb',
     image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'large'
   },
@@ -144,7 +144,7 @@ const products = [
     collection: 'Sport',
     price: '$949',
     material: 'Aluminum',
-    modelPath: '/models/glasses-5c.glb',
+    modelPath: '/models/glb/glasses-5c.glb',
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'regular'
   },
@@ -155,7 +155,7 @@ const products = [
     collection: 'Vintage',
     price: '$1,099',
     material: 'Horn',
-    modelPath: '/models/glasses-10.glb',
+    modelPath: '/models/glb/glasses-10.glb',
     image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'regular'
   },
@@ -166,7 +166,7 @@ const products = [
     collection: 'Modern',
     price: '$1,199',
     material: 'Titanium',
-    modelPath: '/models/glasses-11b.glb',
+    modelPath: '/models/glb/glasses-11b.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'large'
   },
@@ -177,7 +177,7 @@ const products = [
     collection: 'Modern',
     price: '$1,249',
     material: 'Carbon Fiber',
-    modelPath: '/models/glasses-11c.glb',
+    modelPath: '/models/glb/glasses-11c.glb',
     image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'regular'
   },
@@ -188,7 +188,7 @@ const products = [
     collection: 'Classic',
     price: '$999',
     material: 'Gold Plated',
-    modelPath: '/models/glasses-12.glb',
+    modelPath: '/models/glb/glasses-12.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
@@ -199,7 +199,7 @@ const products = [
     collection: 'Vintage',
     price: '$849',
     material: 'Acetate',
-    modelPath: '/models/glasses-7.glb',
+    modelPath: '/models/glb/glasses-7.glb',
     image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80',
     size: 'large'
   },
@@ -210,7 +210,7 @@ const products = [
     collection: 'Classic',
     price: '$1,099',
     material: 'Titanium',
-    modelPath: '/models/glasses-1-.glb',
+    modelPath: '/models/glb/glasses-1-.glb',
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
     size: 'regular'
   },
@@ -221,7 +221,7 @@ const products = [
     collection: 'Classic',
     price: '$699',
     material: 'Acetate',
-    modelPath: '/models/sunglass.glb',
+    modelPath: '/models/glb/sunglass.glb',
     image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800&q=80',
     size: 'regular'
   },
@@ -232,7 +232,7 @@ const products = [
     collection: 'Modern',
     price: '$949',
     material: 'Carbon Fiber',
-    modelPath: '/models/sunglasses.glb',
+    modelPath: '/models/glb/sunglasses.glb',
     image: 'https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&q=80',
     size: 'large'
   },

@@ -40,7 +40,7 @@ const SunglassesModel = ({ modelPath, animationRef }: { modelPath: string, anima
 }
 
 // Preload model
-useGLTF.preload('/models/glasses1.glb')
+useGLTF.preload('/models/glb/glasses1.glb')
 
 const ScrollShowcase: React.FC = () => {
   const sectionRef = useRef<HTMLElement>(null)
@@ -178,7 +178,7 @@ const ScrollShowcase: React.FC = () => {
             
             <Suspense fallback={<Loader />}>
               <SunglassesModel 
-                modelPath="/models/glasses1.glb" 
+                modelPath="/models/glb/glasses1.glb" 
                 animationRef={modelRef}
               />
             </Suspense>

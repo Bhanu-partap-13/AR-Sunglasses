@@ -45,7 +45,7 @@ const productData: Record<string, {
       'Anti-scratch Coating',
       'Adjustable Nose Pads'
     ],
-    modelPath: '/models/glasses1.glb',
+    modelPath: '/models/glb/glasses1.glb',
     colors: [
       { name: 'Matte Black', hex: '#1A1A1A' },
       { name: 'Polished Gold', hex: '#D4AF37' },
@@ -66,7 +66,7 @@ const productData: Record<string, {
       'UV400 Protection',
       'Vintage-inspired Design'
     ],
-    modelPath: '/models/glasses5.glb',
+    modelPath: '/models/glb/glasses5.glb',
     colors: [
       { name: 'Tortoiseshell', hex: '#8B4513' },
       { name: 'Classic Black', hex: '#1A1A1A' },
@@ -87,7 +87,7 @@ const productData: Record<string, {
       'Secure Grip Temple Tips',
       'Wraparound Protection'
     ],
-    modelPath: '/models/glasses6.glb',
+    modelPath: '/models/glb/glasses6.glb',
     colors: [
       { name: 'Stealth Black', hex: '#0A0A0A' },
       { name: 'Racing Red', hex: '#8B0000' },
@@ -108,7 +108,7 @@ const productData: Record<string, {
       'Flexible Temple Design',
       'Premium Anti-reflective Coating'
     ],
-    modelPath: '/models/glasses-8b.glb',
+    modelPath: '/models/glb/glasses-8b.glb',
     colors: [
       { name: 'Midnight Blue', hex: '#1E3A5F' },
       { name: 'Graphite', hex: '#4A4A4A' },
@@ -129,7 +129,7 @@ const productData: Record<string, {
       'Adjustable Fit System',
       'Vintage-inspired Detailing'
     ],
-    modelPath: '/models/glasses-8c.glb',
+    modelPath: '/models/glb/glasses-8c.glb',
     colors: [
       { name: 'Havana Brown', hex: '#6B4423' },
       { name: 'Forest Green', hex: '#2D4A3E' },
@@ -150,7 +150,7 @@ const productData: Record<string, {
       'Signature Engraving',
       'Deluxe Leather Case Included'
     ],
-    modelPath: '/models/glasses-7b.glb',
+    modelPath: '/models/glb/glasses-7b.glb',
     colors: [
       { name: 'Black Gold', hex: '#1A1A1A' },
       { name: 'Ivory Gold', hex: '#FFFFF0' },
@@ -171,7 +171,7 @@ const productData: Record<string, {
       'Spring-loaded Hinges',
       'Signature Temple Design'
     ],
-    modelPath: '/models/glasses-7c.glb',
+    modelPath: '/models/glb/glasses-7c.glb',
     colors: [
       { name: 'Noir', hex: '#0A0A0A' },
       { name: 'Burgundy', hex: '#722F37' },
@@ -192,7 +192,7 @@ const productData: Record<string, {
       'Rubberized Grip',
       'Interchangeable Lenses'
     ],
-    modelPath: '/models/glasses-9b.glb',
+    modelPath: '/models/glb/glasses-9b.glb',
     colors: [
       { name: 'Tactical Black', hex: '#1A1A1A' },
       { name: 'Neon Orange', hex: '#FF6B35' },
@@ -213,7 +213,7 @@ const productData: Record<string, {
       'Handmade Construction',
       'Collector\'s Edition'
     ],
-    modelPath: '/models/glasses-9c.glb',
+    modelPath: '/models/glb/glasses-9c.glb',
     colors: [
       { name: 'Natural Horn', hex: '#5C4033' },
       { name: 'Dark Horn', hex: '#3C2415' },
@@ -228,7 +228,7 @@ const productData: Record<string, {
     description: 'Timeless pilot-style frames with a retro aesthetic and modern durability.',
     material: 'Acetate',
     features: ['Classic Pilot Shape', 'UV400 Protection', 'Lightweight Frame', 'Anti-scratch Lenses', 'Spring Hinges'],
-    modelPath: '/models/glasses3.glb',
+    modelPath: '/models/glb/glasses3.glb',
     colors: [{ name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Gold', hex: '#D4AF37' }]
   },
   'glasses4': {
@@ -239,7 +239,7 @@ const productData: Record<string, {
     description: 'Sleek executive frames crafted for the discerning professional. Clean lines meet premium materials.',
     material: 'Carbon Fiber',
     features: ['Executive Profile', 'Carbon Fiber Frame', 'Anti-reflective Lenses', 'Titanium Hinges', 'Premium Case'],
-    modelPath: '/models/glasses4.glb',
+    modelPath: '/models/glb/glasses4.glb',
     colors: [{ name: 'Graphite', hex: '#4A4A4A' }, { name: 'Polished Gold', hex: '#D4AF37' }, { name: 'Midnight', hex: '#0A0A0A' }]
   },
   'glasses-1-': {
@@ -250,7 +250,7 @@ const productData: Record<string, {
     description: 'The Signature One is the cornerstone of the collection — a frame that defines elegance and precision.',
     material: 'Titanium',
     features: ['Titanium Construction', 'Polarized Lenses', '100% UV Protection', 'Adjustable Nose Pads', 'Signature Engravings'],
-    modelPath: '/models/glasses-1-.glb',
+    modelPath: '/models/glb/glasses-1-.glb',
     colors: [{ name: 'Polished Silver', hex: '#C0C0C0' }, { name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Gold', hex: '#D4AF37' }]
   },
   'glasses-5b': {
@@ -261,7 +261,7 @@ const productData: Record<string, {
     description: 'Engineered for peak performance, the Active Sport frames deliver uncompromising protection.',
     material: 'Polycarbonate',
     features: ['Impact Resistant', 'Non-slip Temple Tips', 'UV400 Lenses', 'Ventilated Frame', 'Lightweight Design'],
-    modelPath: '/models/glasses-5b.glb',
+    modelPath: '/models/glb/glasses-5b.glb',
     colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Racing Red', hex: '#8B0000' }, { name: 'Electric Blue', hex: '#1E3A8A' }]
   },
   'glasses-5c': {
@@ -272,7 +272,7 @@ const productData: Record<string, {
     description: 'Designed for runners and cyclists who demand the best in eyewear performance.',
     material: 'Aluminum',
     features: ['Aerodynamic Design', 'Hydrophobic Coating', 'Anti-fog Lenses', 'Secure Fit System', 'Interchangeable Lenses'],
-    modelPath: '/models/glasses-5c.glb',
+    modelPath: '/models/glb/glasses-5c.glb',
     colors: [{ name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Team White', hex: '#F5F5F5' }, { name: 'Neon Green', hex: '#39FF14' }]
   },
   'glasses-6': {
@@ -283,7 +283,7 @@ const productData: Record<string, {
     description: 'Full-shield wraparound protection for extreme sports and outdoor adventures.',
     material: 'Polycarbonate',
     features: ['Full Shield Design', 'Impact Resistant', 'Anti-scratch Coating', 'UV400 Protection', 'Rubberized Grip'],
-    modelPath: '/models/glasses-6.glb',
+    modelPath: '/models/glb/glasses-6.glb',
     colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Smoke Grey', hex: '#4A4A4A' }, { name: 'Arctic White', hex: '#F0F0F0' }]
   },
   'glasses-7': {
@@ -294,7 +294,7 @@ const productData: Record<string, {
     description: 'Bold square frames inspired by the icons of the golden era of fashion.',
     material: 'Acetate',
     features: ['Bold Square Silhouette', 'Thick Acetate Frame', 'Crystal Clear Lenses', 'Spring Hinges', 'Vintage Hardware'],
-    modelPath: '/models/glasses-7.glb',
+    modelPath: '/models/glb/glasses-7.glb',
     colors: [{ name: 'Classic Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Crystal Clear', hex: '#F5F5F5' }]
   },
   'glasses-10': {
@@ -305,7 +305,7 @@ const productData: Record<string, {
     description: 'Refined oval frames with a sophisticated character. Subtle luxury at its finest.',
     material: 'Natural Horn',
     features: ['Oval Frame Shape', 'Horn Material', 'Crystal Lenses', 'Delicate Detailing', 'Handcrafted'],
-    modelPath: '/models/glasses-10.glb',
+    modelPath: '/models/glb/glasses-10.glb',
     colors: [{ name: 'Natural Horn', hex: '#5C4033' }, { name: 'Dark Horn', hex: '#3C2415' }, { name: 'Blonde Horn', hex: '#C4A777' }]
   },
   'glasses-11b': {
@@ -316,7 +316,7 @@ const productData: Record<string, {
     description: 'Sharp angular geometry meets luxurious materials in the Edge Series B.',
     material: 'Titanium',
     features: ['Angular Design', 'Titanium Frame', 'Photochromic Lenses', 'Featherweight Build', 'Premium Hinges'],
-    modelPath: '/models/glasses-11b.glb',
+    modelPath: '/models/glb/glasses-11b.glb',
     colors: [{ name: 'Brushed Titanium', hex: '#878681' }, { name: 'Matte Black', hex: '#1A1A1A' }, { name: 'Rose Gold', hex: '#B76E79' }]
   },
   'glasses-11c': {
@@ -327,7 +327,7 @@ const productData: Record<string, {
     description: 'Make a statement with the Bold Series C — unapologetically modern, undeniably striking.',
     material: 'Carbon Fiber',
     features: ['Bold Oversized Frame', 'Carbon Fiber Build', 'Gradient Lenses', 'Gold-tone Accents', 'Limited Edition'],
-    modelPath: '/models/glasses-11c.glb',
+    modelPath: '/models/glb/glasses-11c.glb',
     colors: [{ name: 'Carbon Black', hex: '#1C1C1C' }, { name: 'Pearl White', hex: '#F5F5F5' }, { name: 'Amber Gold', hex: '#FFBF00' }]
   },
   'glasses-12': {
@@ -338,7 +338,7 @@ const productData: Record<string, {
     description: 'A homage to the golden age of eyewear, the Heritage Gold combines timeless design with modern craftsmanship.',
     material: 'Gold Plated',
     features: ['Gold Plated Frame', 'Mineral Glass Lenses', 'Italian Acetate Arms', 'UV400 Protection', 'Signature Case'],
-    modelPath: '/models/glasses-12.glb',
+    modelPath: '/models/glb/glasses-12.glb',
     colors: [{ name: 'Yellow Gold', hex: '#D4AF37' }, { name: 'Rose Gold', hex: '#B76E79' }, { name: 'Silver', hex: '#C0C0C0' }]
   },
   'sunglass': {
@@ -349,7 +349,7 @@ const productData: Record<string, {
     description: 'A staple for every wardrobe — the Classic Sunglass pairs effortless style with everyday functionality.',
     material: 'Acetate',
     features: ['Timeless Shape', 'UV400 Lenses', 'Lightweight Acetate', 'Adjustable Nose Pads', 'Anti-scratch Coating'],
-    modelPath: '/models/sunglass.glb',
+    modelPath: '/models/glb/sunglass.glb',
     colors: [{ name: 'Classic Black', hex: '#1A1A1A' }, { name: 'Tortoiseshell', hex: '#8B4513' }, { name: 'Crystal', hex: '#F5F5F5' }]
   },
   'sunglasses': {
@@ -360,7 +360,7 @@ const productData: Record<string, {
     description: 'Premium construction meets contemporary design. The ultimate all-day sunglasses for the modern era.',
     material: 'Carbon Fiber',
     features: ['Premium Carbon Frame', 'Polarized Lenses', 'UV400 Protection', 'Featherweight Build', 'Signature Hardware'],
-    modelPath: '/models/sunglasses.glb',
+    modelPath: '/models/glb/sunglasses.glb',
     colors: [{ name: 'Stealth Black', hex: '#0A0A0A' }, { name: 'Gunmetal', hex: '#4A4A4A' }, { name: 'Gold', hex: '#D4AF37' }]
   }
 }

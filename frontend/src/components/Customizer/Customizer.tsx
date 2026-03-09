@@ -197,7 +197,7 @@ const ScreenshotHandler = ({ onReady }: { onReady: (fn: () => void) => void }) =
 }
 
 const Customizer: React.FC = () => {
-  const [selectedModel, setSelectedModel] = useState('/models/glasses1.glb')
+  const [selectedModel, setSelectedModel] = useState('/models/glb/glasses1.glb')
   const [selectedFrame, setSelectedFrame] = useState(0)
   const [selectedLens, setSelectedLens] = useState(4) // Mirror Gold default (index 4)
   const [selectedEnv, setSelectedEnv] = useState(3) // Forest default (index 3)
@@ -222,9 +222,9 @@ const Customizer: React.FC = () => {
   }, [])
 
   const models = [
-    '/models/glasses1.glb',
-    '/models/glasses-9b.glb',
-    '/models/glasses-11b.glb',
+    '/models/glb/glasses1.glb',
+    '/models/glb/glasses-9b.glb',
+    '/models/glb/glasses-11b.glb',
   ]
 
   return (
